@@ -9,7 +9,6 @@ export class GetPollsDto {
       creatorSession: poll.creatorSession,
       startedAt: poll.startedAt,
       expiredAt: poll.expiredAt,
-      options: poll.options,
     }));
     return returnPolls;
   }

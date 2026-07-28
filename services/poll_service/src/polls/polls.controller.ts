@@ -21,23 +21,25 @@ export class PollsController {
   constructor(private readonly pollsService: PollsService) {}
 
   @Get()
-  getPolls(): GetPollsDto {
-    const polls = this.pollsService.getPolls();
+  async getPolls(): Promise<GetPollsDto> {
+    const polls = await this.pollsService.getPublicPolls();
     return GetPollsDto.toDto(polls);
   }
 
   @Post()
-  createPoll(
+  async createPoll(
     @Body(new ZodValidationPipe(CreatePollSchema))
     createPollSchema: CreatePollType,
-  ): CreatePollDto {
-    const poll = this.pollsService.createPoll(createPollSchema);
+  ): Promise<CreatePollDto> {
+    const poll = await this.pollsService.createPoll(createPollSchema);
     return CreatePollDto.toDto(poll);
   }
 
   @Delete(':id')
-  deletePoll(@Param('id', new ParseUUIDPipe()) id: string): string {
-    this.pollsService.deletePoll(id);
+  async deletePoll(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<string> {
+    await this.pollsService.deletePoll(id);
     return 'Successfully deleted poll';
   }
 }
