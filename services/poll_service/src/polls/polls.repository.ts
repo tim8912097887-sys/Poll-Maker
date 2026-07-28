@@ -1,5 +1,5 @@
 import { Inject } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DbAsyncProvider } from 'src/infrastructure/persistence/db.provider';
 import { polls } from 'src/infrastructure/persistence/schemas/polls';
@@ -13,7 +13,10 @@ export class PollsRepository {
   ) {}
 
   async findPublicPolls() {
-    return this.db.select().from(polls).where(eq(polls.isPrivate, false));
+    return this.db
+      .select()
+      .from(polls)
+      .where(and(eq(polls.isPrivate, false), gt(polls.expiredAt, new Date())));
   }
 
   async createPoll(
