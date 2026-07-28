@@ -1,0 +1,44 @@
+services:
+  polls-maker-db:
+    image: postgres:16-alpine
+    container_name: polls-maker-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: polls_maker
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d polls_maker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  poll-service-migrations:
+    build:
+      context: ./services/poll_service
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/poll_service/.env
+    depends_on:
+      polls-maker-db:
+        condition: service_healthy
+    command: node dist/src/migrate.js
+  poll-service:
+    build:
+      context: ./services/poll_service
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./services/poll_service/.env
+    depends_on:
+      polls-maker-db:
+        condition: service_healthy
+      poll-service-migrations:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
