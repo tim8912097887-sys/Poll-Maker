@@ -23,7 +23,7 @@ export class PollsController {
   constructor(private readonly pollsService: PollsService) {}
 
   @Get()
-  async getPolls(): Promise<
+  async getPublicPolls(): Promise<
     ServerSuccess<{ polls: GetPollsDto; message: string }>
   > {
     const polls = await this.pollsService.getPublicPolls();
@@ -51,8 +51,8 @@ export class PollsController {
   async deletePoll(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<ServerSuccess<{ message: string }>> {
-    await this.pollsService.deletePoll(id);
-    const data = { message: 'Successfully deleted poll' };
+    const result = await this.pollsService.deletePoll(id);
+    const data = { message: result };
     return successResponse(data);
   }
 }

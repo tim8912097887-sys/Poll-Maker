@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { PollsModule } from './polls/polls.module';
 import { ConfigModule } from '@nestjs/config';
 import env from './infrastructure/configs/env';
-import { LoggerService } from './infrastructure/configs/logging/logger.service';
 import { DBModule } from './infrastructure/persistence/db.module';
 import { LoggerModule } from './infrastructure/configs/logging/logger.module';
 

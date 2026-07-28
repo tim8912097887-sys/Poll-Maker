@@ -1,8 +1,8 @@
 import z from 'zod';
 
 export const PollSchema = z.object({
-  id: z.uuid(),
-  title: z.string().min(1).max(255),
+  id: z.uuid('Invalid UUID'),
+  title: z.string().min(1, 'Title must be at least 1 character').max(255),
   isPrivate: z.boolean(),
   creatorSession: z.string(),
   createdAt: z.date(),
