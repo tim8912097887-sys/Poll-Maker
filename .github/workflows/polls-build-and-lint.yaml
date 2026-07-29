@@ -7,6 +7,8 @@ on:
       - fix/**
     paths:
       - "services/poll_service/**"
+      - ".github/actions/node-setup/action.yaml"
+      - ".github/workflows/polls-build-and-lint.yaml"
   pull_request:
     branches:
       - main
