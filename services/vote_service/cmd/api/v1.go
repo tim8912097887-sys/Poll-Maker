@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/vote"
 )
 
 type ApiConfig struct {
@@ -23,10 +26,21 @@ type Api struct {
 }
 
 func (a *Api) Mount() http.Handler {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+        StructValidator: &validation.StructValidator{
+			Validating: validator.New(),
+        },
+    })
 	app.Get("/health",func (c fiber.Ctx)  {
 		c.Status(http.StatusOK).JSON(fiber.Map{"status": "ok"})
 	})
+
+	v1Router := app.Group("/api/v1")
+	// Initialize the vote service
+	voteRouter := v1Router.Group("/votes")
+	voteService := vote.NewService()
+	handler := vote.NewHandler(voteService)
+	handler.RegisterRoutes(voteRouter)
 
 	return adaptor.FiberApp(app)
 }
