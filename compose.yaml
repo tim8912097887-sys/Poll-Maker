@@ -39,6 +39,17 @@ services:
         condition: service_healthy
       poll-service-migrations:
         condition: service_completed_successfully
+  vote-service:
+    build:
+      context: ./services/vote_service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./services/vote_service/.env
+    depends_on:
+      polls-maker-db:
+        condition: service_healthy
 
 volumes:
   pgdata:
