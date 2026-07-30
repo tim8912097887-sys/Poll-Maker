@@ -10,6 +10,7 @@ import (
 type Configs struct{
     Api ApiConfig
 	Db DatabaseConfig
+	Cache CacheConfig
 }
 
 type ApiConfig struct {
@@ -20,8 +21,12 @@ type DatabaseConfig struct {
 	Url string
 }
 
+type CacheConfig struct {
+	Url string
+}
 
-const ENV_PREFIX = "SERVER_"
+
+const ENV_PREFIX = "VOTE_SERVICE_"
 
 func InitConfigs() Configs {
 	// Fail silently for production
@@ -33,6 +38,9 @@ func InitConfigs() Configs {
 		},
 		Db: DatabaseConfig{
 			Url: getEnv(ENV_PREFIX+"DB_URL", "postgresql://postgres:password@polls-maker-db:5432/polls_maker?sslmode=disable"),
+		},
+		Cache: CacheConfig{
+			Url: getEnv(ENV_PREFIX+"CACHE_URL", "redis://polls-maker-redis:6379/0"),
 		},
 	}
 }

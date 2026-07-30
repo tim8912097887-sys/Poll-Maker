@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/cmd/api"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/cache"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/persistence"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
@@ -40,9 +41,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize cache connection pool and register the shutdown handler
+	rdb := cache.NewRedisClient(logger,envConfigs.Cache.Url)
+	rdb, err = cache.CacheInit(ctx,logger,rdb,shutdownManager)
+	if err != nil {
+		logger.Error("failed to initialize cache connection",slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	v1Api := api.Api{ Config: api.ApiConfig{Logger: logger, EnvConfigs: envConfigs} }
 
-	if err := v1Api.Run(ctx, v1Api.Mount(pool), 5*time.Second, shutdownManager); err != nil {
+	if err := v1Api.Run(ctx, v1Api.Mount(pool,rdb), 5*time.Second, shutdownManager); err != nil {
 		logger.Error("failed to run api",slog.Any("error", err))
 		os.Exit(1)
 	}
