@@ -10,10 +10,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
-	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/vote"
 )
 
 type ApiConfig struct {
@@ -25,7 +26,7 @@ type Api struct {
 	Config ApiConfig
 }
 
-func (a *Api) Mount() http.Handler {
+func (a *Api) Mount(db *pgxpool.Pool) http.Handler {
 	app := fiber.New(fiber.Config{
         StructValidator: &validation.StructValidator{
 			Validating: validator.New(),
@@ -38,9 +39,12 @@ func (a *Api) Mount() http.Handler {
 	v1Router := app.Group("/api/v1")
 	// Initialize the vote service
 	voteRouter := v1Router.Group("/votes")
-	voteService := vote.NewService()
-	handler := vote.NewHandler(voteService)
-	handler.RegisterRoutes(voteRouter)
+	voteRepository := vote.NewRepository(db)
+	voteServiceConfig := vote.ServiceConfig{VoteRepository: voteRepository}
+	voteService := vote.NewService(&voteServiceConfig)
+	voteHandlerConfig := vote.HandlerConfig{VoteService: voteService, Logger: a.Config.Logger}
+	voteHandler := vote.NewHandler(&voteHandlerConfig)
+	voteHandler.RegisterRoutes(voteRouter)
 
 	return adaptor.FiberApp(app)
 }

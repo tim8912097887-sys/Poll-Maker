@@ -1,7 +1,9 @@
 package vote
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
@@ -10,25 +12,31 @@ import (
 )
 
 type VoteService interface {
-	CreateVote(vote *types.CreateVoteSchema) (types.CreateVoteDto, error)
+	CreateVote(ctx context.Context,vote types.CreateVoteSchema) (types.CreateVoteDto, error)
 }
 
-type Handler struct {
+type handler struct {
 	voteService VoteService
+	logger      *slog.Logger
 }
 
-func NewHandler(voteService VoteService) *Handler {
-	return &Handler{voteService: voteService}
+type HandlerConfig struct {
+	Logger     *slog.Logger
+	VoteService VoteService
 }
 
-func (h *Handler) RegisterRoutes(app fiber.Router) {
+func NewHandler(handlerConfig *HandlerConfig) *handler {
+	return &handler{voteService: handlerConfig.VoteService, logger: handlerConfig.Logger}
+}
+
+func (h *handler) RegisterRoutes(app fiber.Router) {
 	app.Post("", h.CreateVote)
 }
 
-func (h *Handler) CreateVote(c fiber.Ctx) {
-	vote := new(types.CreateVoteSchema)
+func (h *handler) CreateVote(c fiber.Ctx) {
+	var vote types.CreateVoteSchema
 
-    if err := c.Bind().Body(vote); err != nil {
+    if err := c.Bind().Body(&vote); err != nil {
         var validationErrors validator.ValidationErrors
         if errors.As(err, &validationErrors) {
             out := make([]fiber.Map, 0, len(validationErrors))
@@ -46,8 +54,9 @@ func (h *Handler) CreateVote(c fiber.Ctx) {
 		c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("invalid_request", "invalid request body",nil))
 		return
     }
-	createdVote, err := h.voteService.CreateVote(vote)
+	createdVote, err := h.voteService.CreateVote(c.Context(),vote)
 	if err != nil {
+		h.logger.Error("failed to create vote",slog.Any("error", err))
 		c.Status(fiber.StatusInternalServerError).JSON(response.NewErrorResponse("internal_error", "internal server error",nil))
 		return
 	}
