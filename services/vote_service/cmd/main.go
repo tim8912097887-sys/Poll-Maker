@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/cmd/api"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/persistence"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
 )
@@ -32,9 +33,16 @@ func main() {
 
 	shutdownManager := shutdown.NewManager(logger)
 
+	// Inialize the database connection pool and register the shutdown handler
+	pool, err := persistence.Init(logger,ctx,envConfigs.Db.Url,shutdownManager)
+	if err != nil {
+		logger.Error("failed to initialize database connection",slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	v1Api := api.Api{ Config: api.ApiConfig{Logger: logger, EnvConfigs: envConfigs} }
 
-	if err := v1Api.Run(ctx, v1Api.Mount(), 5*time.Second, shutdownManager); err != nil {
+	if err := v1Api.Run(ctx, v1Api.Mount(pool), 5*time.Second, shutdownManager); err != nil {
 		logger.Error("failed to run api",slog.Any("error", err))
 		os.Exit(1)
 	}
