@@ -1,0 +1,37 @@
+# Compiled binaries and architectures
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage reports
+*.test
+*.out
+*.prof
+cpu.pprof
+mem.pprof
+
+# Output of go buid when using standard naming
+*[your-project-name]* # Dependency directories 
+# (Uncomment the next line if you do NOT want to commit vendored dependencies)
+# vendor/
+
+# IDEs and editors configuration
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Local environment variables / secrets
+.env
+.env.local

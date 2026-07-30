@@ -1,0 +1,29 @@
+name: CI-Vote-Service-Build
+
+on:
+  push:
+    branches: ["main", "feat/**", "fix/**"]
+    paths:
+      - "services/vote_service/**"
+      - ".github/workflows/vote-build.yaml"
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  vote-service-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./services/vote_service
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.4"
+      - name: Build
+        run: go build -v ./...
