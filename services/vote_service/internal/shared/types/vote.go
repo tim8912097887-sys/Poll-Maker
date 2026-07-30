@@ -28,3 +28,4 @@ type CreateVoteDto struct {
 	PollId    string `json:"pollId"`
 	OptionId  string `json:"optionId"`
 }
+

@@ -15,9 +15,9 @@ import (
 var embedMigrations embed.FS
 
 func main() {
-	dbString := os.Getenv("SERVER_DB_URL")
+	dbString := os.Getenv("VOTE_SERVICE_DB_URL")
 	if dbString == "" {
-		log.Fatal("DB_URL environment variable is required")
+		log.Fatal("VOTE_SERVICE_DB_URL environment variable is required")
 	}
 
 	// Set Goose to use the embedded filesystem

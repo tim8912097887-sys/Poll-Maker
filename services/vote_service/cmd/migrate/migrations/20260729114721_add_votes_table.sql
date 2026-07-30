@@ -12,7 +12,7 @@ CREATE TABLE votes (
     CONSTRAINT fk_option
         FOREIGN KEY (option_id)
         REFERENCES poll_options (id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
     CONSTRAINT unique_poll_session UNIQUE (poll_id, session_id)
 );
 

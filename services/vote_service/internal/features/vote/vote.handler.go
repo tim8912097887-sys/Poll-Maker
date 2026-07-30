@@ -18,15 +18,21 @@ type VoteService interface {
 type handler struct {
 	voteService VoteService
 	logger      *slog.Logger
+    errorHandler    func(fiber.Ctx, error)
 }
 
 type HandlerConfig struct {
 	Logger     *slog.Logger
 	VoteService VoteService
+	ErrorHandler    func(fiber.Ctx, error)
 }
 
 func NewHandler(handlerConfig *HandlerConfig) *handler {
-	return &handler{voteService: handlerConfig.VoteService, logger: handlerConfig.Logger}
+	return &handler{
+		voteService: handlerConfig.VoteService, 
+		logger: handlerConfig.Logger,
+		errorHandler: handlerConfig.ErrorHandler,
+	}
 }
 
 func (h *handler) RegisterRoutes(app fiber.Router) {
@@ -57,7 +63,7 @@ func (h *handler) CreateVote(c fiber.Ctx) {
 	createdVote, err := h.voteService.CreateVote(c.Context(),vote)
 	if err != nil {
 		h.logger.Error("failed to create vote",slog.Any("error", err))
-		c.Status(fiber.StatusInternalServerError).JSON(response.NewErrorResponse("internal_error", "internal server error",nil))
+		h.errorHandler(c, err)
 		return
 	}
 
