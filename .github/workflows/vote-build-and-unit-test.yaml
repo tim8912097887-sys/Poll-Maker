@@ -1,4 +1,4 @@
-name: CI-Vote-Service-Build
+name: CI-Vote-Service-Build-And-Unit-Test
 
 on:
   push:
@@ -27,3 +27,5 @@ jobs:
           go-version: "1.26.4"
       - name: Build
         run: go build -v ./...
+      - name: Test
+        run: go test -v ./...
