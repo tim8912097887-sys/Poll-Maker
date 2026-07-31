@@ -15,7 +15,7 @@ type VoteService interface {
 	CreateVote(ctx context.Context,vote types.CreateVoteSchema) (types.CreateVoteDto, error)
 }
 
-type handler struct {
+type Handler struct {
 	voteService VoteService
 	logger      *slog.Logger
     errorHandler    func(fiber.Ctx, error)
@@ -27,19 +27,19 @@ type HandlerConfig struct {
 	ErrorHandler    func(fiber.Ctx, error)
 }
 
-func NewHandler(handlerConfig *HandlerConfig) *handler {
-	return &handler{
+func NewHandler(handlerConfig *HandlerConfig) *Handler {
+	return &Handler{
 		voteService: handlerConfig.VoteService, 
 		logger: handlerConfig.Logger,
 		errorHandler: handlerConfig.ErrorHandler,
 	}
 }
 
-func (h *handler) RegisterRoutes(app fiber.Router) {
+func (h *Handler) RegisterRoutes(app fiber.Router) {
 	app.Post("", h.CreateVote)
 }
 
-func (h *handler) CreateVote(c fiber.Ctx) {
+func (h *Handler) CreateVote(c fiber.Ctx) {
 	var vote types.CreateVoteSchema
 
     if err := c.Bind().Body(&vote); err != nil {
