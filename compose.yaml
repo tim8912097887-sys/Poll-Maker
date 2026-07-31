@@ -16,6 +16,15 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: redis-insight
+    ports:
+      - "5540:5540"
+    restart: always
+    depends_on:
+      polls-maker-cache:
+        condition: service_healthy
   polls-maker-db:
     image: postgres:16-alpine
     container_name: polls-maker-db

@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import env from './infrastructure/configs/env';
 import { DBModule } from './infrastructure/persistence/db.module';
 import { LoggerModule } from './infrastructure/configs/logging/logger.module';
+import { CacheModule } from './infrastructure/cache/cache.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { LoggerModule } from './infrastructure/configs/logging/logger.module';
     }),
     LoggerModule,
     DBModule,
+    CacheModule,
     PollsModule,
   ],
   controllers: [AppController],

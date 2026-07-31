@@ -8,6 +8,7 @@ import {
 import { Request, Response } from 'express';
 import { errorResponse } from '../response/error';
 import { logger } from 'src/infrastructure/configs/logging/logger.config';
+import { DomainError } from '../errors/domain';
 
 const STATUS_CODE_MAPPING: Record<number, string> = {
   400: 'Bad Request',
@@ -26,12 +27,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const status =
-      exception instanceof HttpException
+      exception instanceof HttpException || exception instanceof DomainError
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const message =
-      exception instanceof HttpException
+      exception instanceof HttpException || exception instanceof DomainError
         ? exception.getResponse()
         : 'Internal Server Error';
 
