@@ -26,6 +26,7 @@ export class PollsRepository {
   ) {
     await this.db.transaction(async (tx) => {
       const { options, ...rest } = createPollSchema;
+      // Insert poll
       await tx.insert(polls).values({
         ...rest,
         id,
@@ -34,6 +35,7 @@ export class PollsRepository {
         expiredAt: new Date(rest.expiredAt),
       });
 
+      // Insert poll options
       const insertedOptions = options.map((option) => ({
         ...option,
         id: crypto.randomUUID(),
@@ -43,6 +45,7 @@ export class PollsRepository {
       await tx.insert(pollOptions).values(insertedOptions);
     });
 
+    // Get created poll
     const [createdPoll] = await this.db
       .select({
         id: polls.id,
@@ -52,7 +55,7 @@ export class PollsRepository {
         createdAt: polls.createdAt,
         startedAt: polls.startedAt,
         expiredAt: polls.expiredAt,
-        options: sql<string[]>`json_agg(${pollOptions.optionText})`,
+        options: sql<string[]>`json_agg(${pollOptions.id})`,
       })
       .from(polls)
       .innerJoin(pollOptions, eq(polls.id, pollOptions.pollId))
