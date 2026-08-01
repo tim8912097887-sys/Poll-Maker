@@ -5,13 +5,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { DbAsyncProvider } from 'src/infrastructure/persistence/db.provider';
-import { notBetween, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { seedPolls } from './helpers/seeding/polls';
 import { createPollSchema } from './helpers/factory/polls';
+import { RedisClientType } from 'redis';
+import { CacheAsyncProvider } from 'src/infrastructure/cache/cache.provider';
 
 describe('Polls API', () => {
   let app: INestApplication;
   let db: ReturnType<typeof drizzle>;
+  let cache: RedisClientType;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -23,6 +26,7 @@ describe('Polls API', () => {
     await app.init();
 
     db = app.get(DbAsyncProvider);
+    cache = app.get(CacheAsyncProvider);
   });
 
   beforeEach(async () => {
@@ -32,6 +36,8 @@ describe('Polls API', () => {
         poll_options
     RESTART IDENTITY CASCADE
     `);
+
+    await cache.flushAll();
   });
 
   afterAll(async () => {
@@ -41,7 +47,7 @@ describe('Polls API', () => {
   describe('GET /api/v1/polls', () => {
     it('should return a list of polls', async () => {
       // Arrange
-      await seedPolls(db);
+      await seedPolls(db, cache);
 
       // Act
       const respond = await request(app.getHttpServer()).get('/api/v1/polls');
@@ -68,6 +74,10 @@ describe('Polls API', () => {
       // Assert
       expect(respond.status).toBe(201);
       expect(respond.body.data?.poll?.title).toBe(createPollInfo.title);
+      const meta = await cache.HGETALL(
+        `poll:${respond.body.data?.poll?.id}:meta`,
+      );
+      expect(meta?.StartedAt).toBeDefined();
     });
 
     it('should fail to create a new poll if startedAt is not in the future', async () => {
@@ -225,8 +235,8 @@ describe('Polls API', () => {
   describe('DELETE /api/v1/polls/:id', () => {
     it('should delete a poll', async () => {
       // Arrange
-      const poll = await seedPolls(db);
-      const id = poll[0].poll.id;
+      const poll = await seedPolls(db, cache);
+      const id = poll[2].poll.id;
 
       // Act
       const respond = await request(app.getHttpServer())
@@ -238,6 +248,9 @@ describe('Polls API', () => {
       expect(respond.body.data.message).toBe(
         `This action removes a #${id} poll`,
       );
+
+      const meta = await cache.HGETALL(`poll:${id}:meta`);
+      expect(Object.keys(meta).length).toBe(0);
     });
 
     it('should fail to delete a poll if poll not found', async () => {
