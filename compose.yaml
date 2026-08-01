@@ -3,7 +3,7 @@ services:
     image: redis:8.0-alpine
     container_name: polls-maker-cache
     environment:
-      - REDIS_PASSWORD=password
+      REDIS_PASSWORD: password
     ports:
       - "6379:6379"
     command: redis-server --requirepass ${REDIS_PASSWORD:-password}
