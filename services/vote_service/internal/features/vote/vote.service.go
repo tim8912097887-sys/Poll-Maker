@@ -18,6 +18,7 @@ type VoteCache interface {
 	MarkVoted(ctx context.Context, pollID, sessionID string, expiredAt time.Time) error
     GetPollMeta(ctx context.Context, pollID string) (*types.PollMeta, error)
     IsValidOption(ctx context.Context, pollID, optionID string) (bool, error)
+	DeleteVoteCache(ctx context.Context, pollID string) error
 }
 
 type service struct{

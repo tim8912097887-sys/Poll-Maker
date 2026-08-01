@@ -49,9 +49,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	v1Api := api.Api{ Config: api.ApiConfig{Logger: logger, EnvConfigs: envConfigs} }
+	v1Api := api.Api{ Config: api.ApiConfig{
+		Logger: logger, 
+		EnvConfigs: envConfigs,
+		CacheClient: rdb,
+		Db: pool,
+		ShutdownManager: shutdownManager,
+	} }
 
-	if err := v1Api.Run(ctx, v1Api.Mount(pool,rdb), 5*time.Second, shutdownManager); err != nil {
+	if err := v1Api.Run(ctx, v1Api.Mount(ctx), 5*time.Second); err != nil {
 		logger.Error("failed to run api",slog.Any("error", err))
 		os.Exit(1)
 	}
