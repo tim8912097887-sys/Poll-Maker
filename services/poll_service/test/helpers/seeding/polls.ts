@@ -1,9 +1,14 @@
 import { randomUUID } from 'crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { RedisClientType } from 'redis';
 import { pollOptions } from 'src/infrastructure/persistence/schemas/poll_options';
 import { polls } from 'src/infrastructure/persistence/schemas/polls';
+import { createPollKey, createPollOptionsKey } from 'src/polls/utils/cache-key';
 
-export async function seedPolls(db: ReturnType<typeof drizzle>) {
+export async function seedPolls(
+  db: ReturnType<typeof drizzle>,
+  cache: RedisClientType,
+) {
   const now = new Date();
 
   const data = [
@@ -65,6 +70,7 @@ export async function seedPolls(db: ReturnType<typeof drizzle>) {
   ];
 
   for (const item of data) {
+    // Insert poll and options into the database
     await db.insert(polls).values(item.poll);
 
     await db.insert(pollOptions).values(
@@ -73,6 +79,27 @@ export async function seedPolls(db: ReturnType<typeof drizzle>) {
         pollId: item.poll.id,
         optionText: text,
       })),
+    );
+
+    // Insert poll and options into the cache
+    const pollKey = createPollKey(item.poll.id);
+    await cache.hSet(pollKey, {
+      StartedAt: item.poll.startedAt.toISOString(),
+      ExpiredAt: item.poll.expiredAt.toISOString(),
+      IsPrivate: item.poll.isPrivate ? 'true' : 'false',
+    });
+
+    await cache.expire(
+      pollKey,
+      Math.floor((item.poll.expiredAt.getTime() - Date.now()) / 1000),
+    );
+
+    const pollOptionsKey = createPollOptionsKey(item.poll.id);
+    await cache.sAdd(pollOptionsKey, item.options);
+
+    await cache.expire(
+      pollOptionsKey,
+      Math.floor((item.poll.expiredAt.getTime() - Date.now()) / 1000),
     );
   }
 

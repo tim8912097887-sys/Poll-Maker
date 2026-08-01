@@ -27,12 +27,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const status =
-      exception instanceof HttpException || exception instanceof DomainError
+      exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const message =
-      exception instanceof HttpException || exception instanceof DomainError
+      exception instanceof HttpException
         ? exception.getResponse()
         : 'Internal Server Error';
 
