@@ -68,13 +68,13 @@ jobs:
           PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
         run: |
           # Execute psql inside the container named 'postgres'
-          docker exec -e PGPASSWORD="$PGPASSWORD" postgres psql -U myuser -d mydb -c "SELECT 1;"
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} psql -U myuser -d mydb -c "SELECT 1;"
       - name: Ping Redis
         env:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         run: |
           # Run redis-cli inside the container named 'redis'
-          docker exec redis redis-cli -a "$REDIS_PASSWORD" ping
+          docker exec ${{ job.services.redis.id }} redis-cli -a "$REDIS_PASSWORD" ping
       - name: Run Database Migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
