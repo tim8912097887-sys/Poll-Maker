@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 jobs:
   polls-service-integration-test:
+    environment:
+      name: Poll Service
     runs-on: ubuntu-latest
     env:
       NODE_ENV: $ {{ vars.NODE_ENV }}
