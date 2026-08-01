@@ -365,6 +365,7 @@ type MockVoteCache struct {
 	MarkVotedFunc     func(ctx context.Context, pollID, sessionID string, expiredAt time.Time) error
 	GetPollMetaFunc   func(ctx context.Context, pollID string) (*types.PollMeta, error)
 	IsValidOptionFunc func(ctx context.Context, pollID, optionID string) (bool, error)
+	DeleteVoteCacheFunc func(ctx context.Context, pollID string) error
 }
 
 func InitMockVoteCache() *MockVoteCache {
@@ -385,6 +386,9 @@ func InitMockVoteCache() *MockVoteCache {
 		IsValidOptionFunc: func(ctx context.Context, pollID, optionID string) (bool, error) {
 			return true, nil
 		},
+		DeleteVoteCacheFunc: func(ctx context.Context, pollID string) error {
+			return nil
+		},
 	}
 }
 
@@ -402,4 +406,8 @@ func (m *MockVoteCache) GetPollMeta(ctx context.Context, pollID string) (*types.
 
 func (m *MockVoteCache) IsValidOption(ctx context.Context, pollID, optionID string) (bool, error) {
 	return m.IsValidOptionFunc(ctx, pollID, optionID)
+}
+
+func (m *MockVoteCache) DeleteVoteCache(ctx context.Context, pollID string) error {
+	return m.DeleteVoteCacheFunc(ctx, pollID)
 }
