@@ -15,12 +15,12 @@ jobs:
       name: Poll Service
     runs-on: ubuntu-latest
     env:
-      NODE_ENV: $ {{ vars.NODE_ENV }}
-      PORT: $ {{ vars.PORT }}
-      CACHE_SOCKET_TIMEOUT: $ {{ vars.CACHE_SOCKET_TIMEOUT }}
-      LOG_LEVEL: $ {{ vars.LOG_LEVEL }}
-      DATABASE_URL: $ {{ secrets.DATABASE_URL }}
-      CACHE_URL: $ {{ secrets.CACHE_URL }}
+      NODE_ENV: ${{ vars.NODE_ENV }}
+      PORT: ${{ vars.PORT }}
+      CACHE_SOCKET_TIMEOUT: ${{ vars.CACHE_SOCKET_TIMEOUT }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CACHE_URL: ${{ secrets.CACHE_URL }}
     defaults:
       run:
         working-directory: ./services/poll_service
@@ -34,7 +34,7 @@ jobs:
           - 5432:5432
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: $ {{ secrets.DATABASE_PASSWORD }}
+          POSTGRES_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
           POSTGRES_DB: polls_maker
         options: >-
           --health-cmd "pg_isready -U postgres -d polls_maker"
@@ -44,6 +44,8 @@ jobs:
           --health-start-period 10s
       redis:
         image: redis:8.0-alpine
+        env:
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         ports:
           - 6379:6379
         options: >-
@@ -52,8 +54,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
           --health-start-period 5s
-        command: >
-          redis-server --requirepass $ {{ secrets.REDIS_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
