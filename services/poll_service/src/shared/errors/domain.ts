@@ -1,15 +1,7 @@
-export abstract class DomainError extends Error {
-  abstract readonly status: number;
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
+import { HttpException, HttpStatus } from '@nestjs/common';
 
-  getStatus() {
-    return this.status;
-  }
-
-  getResponse() {
-    return this.message;
+export abstract class DomainError extends HttpException {
+  constructor(message: string | object, status: HttpStatus) {
+    super(message, status);
   }
 }
