@@ -1,26 +1,16 @@
-name: CI-Polls-Service-Build-and-Lint
+name: CI-Polls-Service-Integration-Test
 on:
-  push:
-    branches:
-      - main
-      - feat/**
-      - fix/**
-    paths:
-      - "services/poll_service/**"
-      - ".github/actions/node-setup/action.yaml"
-      - ".github/workflows/polls-build-and-lint.yaml"
   pull_request:
     branches:
       - main
       - feat/**
-      - fix/**
 permissions:
   contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 jobs:
-  polls-service-build:
+  polls-service-integration-test:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,21 +27,5 @@ jobs:
           node-version: ${{ matrix.node-version }}
           pnpm-version: 10.26.1
           workdir: ./services/poll_service
-      - name: Build
-        run: pnpm build
-  polls-service-lint:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./services/poll_service
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node and PNPM
-        uses: ./.github/actions/node-setup
-        with:
-          node-version: 24
-          pnpm-version: 10.26.1
-          workdir: ./services/poll_service
-      - name: Run lint
-        run: pnpm lint
+      - name: Test
+        run: pnpm test
