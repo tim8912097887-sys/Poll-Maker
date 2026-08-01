@@ -8,7 +8,6 @@ import {
 import { Request, Response } from 'express';
 import { errorResponse } from '../response/error';
 import { logger } from 'src/infrastructure/configs/logging/logger.config';
-import { DomainError } from '../errors/domain';
 
 const STATUS_CODE_MAPPING: Record<number, string> = {
   400: 'Bad Request',
