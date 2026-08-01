@@ -18,6 +18,32 @@ jobs:
     strategy:
       matrix:
         node-version: [22, 24]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: polls_maker
+        options: >-
+          --health-cmd "pg_isready -U postgres -d polls_maker"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 10s
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --requirepass password
+          --health-cmd="redis-cli -a password ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 5s
     steps:
       - name: Checkout
         uses: actions/checkout@v4
