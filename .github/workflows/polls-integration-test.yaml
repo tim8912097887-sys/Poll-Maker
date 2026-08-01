@@ -63,11 +63,18 @@ jobs:
           node-version: ${{ matrix.node-version }}
           pnpm-version: 10.26.1
           workdir: ./services/poll_service
-      - name: Wait for DB & Cache
+      - name: Query Postgres inside Container
+        env:
+          PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
         run: |
-          until pg_isready -h localhost -U postgres -d polls_maker; do sleep 2; done
-          until redis-cli -a ${{ secrets.REDIS_PASSWORD }} -h localhost ping; do sleep 2; done
-
+          # Execute psql inside the container named 'postgres'
+          docker exec -e PGPASSWORD="$PGPASSWORD" postgres psql -U myuser -d mydb -c "SELECT 1;"
+      - name: Ping Redis
+        env:
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          # Run redis-cli inside the container named 'redis'
+          docker exec redis redis-cli -a "$REDIS_PASSWORD" ping
       - name: Run Database Migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
