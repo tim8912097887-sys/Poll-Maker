@@ -17,6 +17,9 @@ func ErrorHandlerMiddleware() func (c fiber.Ctx, err error) {
 		case errors.Is(err,shared.ErrInvalidOption):
 			c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("INVALID_OPTION", err.Error(),nil))
 			return
+		case errors.Is(err,shared.ErrPollNotFound):
+			c.Status(fiber.StatusNotFound).JSON(response.NewErrorResponse("POLL_NOT_FOUND", err.Error(),nil))
+			return
 		default:
 			c.Status(fiber.StatusInternalServerError).JSON(response.NewErrorResponse("INTERNAL_ERROR", "internal server error",nil))
 			return

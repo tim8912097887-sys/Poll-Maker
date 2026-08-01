@@ -35,6 +35,7 @@ func (c *cache) HasVoted(ctx context.Context, pollID, sessionID string) (bool, e
 	return voted, nil
 }
 
+
 func (c *cache) MarkVoted(
     ctx context.Context,
     pollID,
@@ -74,12 +75,23 @@ func (c *cache) GetPollMeta(ctx context.Context, pollID string) (*types.PollMeta
         return nil, shared.ErrPollNotFound 
     }
 
-    var pollMeta types.PollMeta
-    if err := res.Scan(&pollMeta); err != nil {
+    // Parse time string to time.Time avoid direct scan fail
+    startedAt, err := time.Parse(time.RFC3339, resultMap["StartedAt"])
+    if err != nil {
         return nil, err
     }
 
-    return &pollMeta, nil
+    expiredAt, err := time.Parse(time.RFC3339, resultMap["ExpiredAt"])
+    if err != nil {
+        return nil, err
+    }
+
+    return &types.PollMeta{
+        StartedAt: startedAt,
+        ExpiredAt: expiredAt,
+        IsPrivate: resultMap["IsPrivate"] == "true",
+    }, nil
+
 }
 func (c *cache) IsValidOption(ctx context.Context, pollID, optionID string) (bool, error) {
 	
@@ -90,4 +102,10 @@ func (c *cache) IsValidOption(ctx context.Context, pollID, optionID string) (boo
 		return false, err
 	}
 	return valid, nil
+}
+
+func (c *cache) DeleteVoteCache(ctx context.Context, pollID string) error {
+    key := fmt.Sprintf("poll:%s:voted", pollID)
+    _, err := c.cacheClient.Del(ctx, key).Result()
+    return err
 }

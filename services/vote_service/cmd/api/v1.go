@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/cache"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/middlewares"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
@@ -22,13 +23,16 @@ import (
 type ApiConfig struct {
 	Logger *slog.Logger
 	EnvConfigs configs.Configs
+	Db *pgxpool.Pool
+	CacheClient *redis.Client
+	ShutdownManager *shutdown.Manager
 }
 
 type Api struct {
 	Config ApiConfig
 }
 
-func (a *Api) Mount(db *pgxpool.Pool,cache *redis.Client) http.Handler {
+func (a *Api) Mount(ctx context.Context) http.Handler {
 	app := fiber.New(fiber.Config{
         StructValidator: &validation.StructValidator{
 			Validating: validator.New(),
@@ -41,9 +45,9 @@ func (a *Api) Mount(db *pgxpool.Pool,cache *redis.Client) http.Handler {
 	v1Router := app.Group("/api/v1")
 	// Initialize the vote service
 	voteRouter := v1Router.Group("/votes")
-	voteCacheConfig := vote.CacheConfig{CacheClient: cache}
+	voteCacheConfig := vote.CacheConfig{CacheClient: a.Config.CacheClient}
 	voteCache := vote.NewCache(voteCacheConfig)
-	voteRepository := vote.NewRepository(db)
+	voteRepository := vote.NewRepository(a.Config.Db)
 	voteServiceConfig := vote.ServiceConfig{
 		VoteRepository: voteRepository,
 		VoteCache: voteCache,
@@ -57,10 +61,19 @@ func (a *Api) Mount(db *pgxpool.Pool,cache *redis.Client) http.Handler {
 	voteHandler := vote.NewHandler(&voteHandlerConfig)
 	voteHandler.RegisterRoutes(voteRouter)
 
+	subscriberConfig := cache.SubscriberConfig{
+			CacheClient: a.Config.CacheClient,
+			VoteCache: voteCache,
+			Logger: a.Config.Logger,
+	}
+	subscriber := cache.NewSubscriber(subscriberConfig)
+	go func() {
+		subscriber.Start(ctx)
+	}()
 	return adaptor.FiberApp(app)
 }
 
-func (a *Api) Run(ctx context.Context, h http.Handler, shutdownTimeout time.Duration,shutdownManager *shutdown.Manager) error {
+func (a *Api) Run(ctx context.Context, h http.Handler, shutdownTimeout time.Duration) error {
 	server := &http.Server{
 		Addr:    a.Config.EnvConfigs.Api.Addr,
 		Handler: h,
@@ -82,7 +95,7 @@ func (a *Api) Run(ctx context.Context, h http.Handler, shutdownTimeout time.Dura
 	}()
 
 	// Register the shutdown handler
-	shutdownManager.Register(a.Shutdown(server, shutdownTimeout))
+	a.Config.ShutdownManager.Register(a.Shutdown(server, shutdownTimeout))
 
 	select {
 		case <-ctx.Done():
@@ -92,7 +105,7 @@ func (a *Api) Run(ctx context.Context, h http.Handler, shutdownTimeout time.Dura
 	}
 
 	// Start a graceful shutdown
-	shutdownManager.Shutdown(shutdownTimeout)
+	a.Config.ShutdownManager.Shutdown(shutdownTimeout)
 
 	return nil
 
