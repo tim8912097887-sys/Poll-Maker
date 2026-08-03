@@ -11,6 +11,7 @@ type Configs struct{
     Api ApiConfig
 	Db DatabaseConfig
 	Cache CacheConfig
+	Grpc GrpcConfig
 }
 
 type ApiConfig struct {
@@ -23,6 +24,10 @@ type DatabaseConfig struct {
 
 type CacheConfig struct {
 	Url string
+}
+
+type GrpcConfig struct {
+	Addr string
 }
 
 
@@ -41,6 +46,9 @@ func InitConfigs() Configs {
 		},
 		Cache: CacheConfig{
 			Url: getEnv(ENV_PREFIX+"CACHE_URL", "redis://polls-maker-redis:6379/0"),
+		},
+		Grpc: GrpcConfig{
+			Addr: getEnv(ENV_PREFIX+"GRPC_ADDR", ":8081"),
 		},
 	}
 }

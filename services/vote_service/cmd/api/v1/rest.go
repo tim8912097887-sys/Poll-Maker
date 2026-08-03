@@ -1,4 +1,4 @@
-package api
+package v1
 
 import (
 	"context"
@@ -18,6 +18,9 @@ import (
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/middlewares"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
+	pollv1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type ApiConfig struct {
@@ -48,9 +51,16 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 	voteCacheConfig := vote.CacheConfig{CacheClient: a.Config.CacheClient}
 	voteCache := vote.NewCache(voteCacheConfig)
 	voteRepository := vote.NewRepository(a.Config.Db)
+	grpcConn, err := grpc.NewClient(a.Config.EnvConfigs.Grpc.Addr,grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		a.Config.Logger.Error("failed to create grpc client",slog.Any("error", err))
+	}
+	grpcClient := pollv1.NewPollServiceClient(grpcConn)
+	voteGrpcClient := vote.NewGrpcVoteService(grpcClient)
 	voteServiceConfig := vote.ServiceConfig{
 		VoteRepository: voteRepository,
 		VoteCache: voteCache,
+		GrpcClient: voteGrpcClient,
 	}
 	voteService := vote.NewService(&voteServiceConfig)
 	voteHandlerConfig := vote.HandlerConfig{
