@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/cmd/api"
+	v1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/cmd/api/v1"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/cache"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/persistence"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
@@ -49,7 +49,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	v1Api := api.Api{ Config: api.ApiConfig{
+	v1Api := v1.Api{ Config: v1.ApiConfig{
 		Logger: logger, 
 		EnvConfigs: envConfigs,
 		CacheClient: rdb,

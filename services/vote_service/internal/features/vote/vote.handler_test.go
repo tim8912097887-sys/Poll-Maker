@@ -21,6 +21,7 @@ import (
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
+	pollv1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/proto"
 )
 
 // ---------------------------------------------------------------------------
@@ -30,10 +31,10 @@ import (
 func setupRouter(t *testing.T, h *vote.Handler) *fiber.App {
 	t.Helper()
 	app := fiber.New(fiber.Config{
-        StructValidator: &validation.StructValidator{
+		StructValidator: &validation.StructValidator{
 			Validating: validator.New(),
-        },
-    })
+		},
+	})
 	voteGroup := app.Group("/api/v1/votes")
 	h.RegisterRoutes(voteGroup)
 	return app
@@ -49,7 +50,8 @@ func decodeResponse[T any](t *testing.T, resp *http.Response) T {
 	return payload
 }
 
-func wireupHandler(t *testing.T, voteRepository *MockVoteRepository, voteCache *MockVoteCache) *vote.Handler {
+
+func wireupHandler(t *testing.T, voteRepository *MockVoteRepository, voteCache *MockVoteCache, grpcClient *MockVoteGrpcClient) *vote.Handler {
 	t.Helper()
 	handlerOpts := &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -57,9 +59,14 @@ func wireupHandler(t *testing.T, voteRepository *MockVoteRepository, voteCache *
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, handlerOpts))
 	slog.SetDefault(logger)
 
+	if grpcClient == nil {
+		grpcClient = InitMockVoteGrpcClient()
+	}
+
 	voteService := vote.NewService(&vote.ServiceConfig{
 		VoteRepository: voteRepository,
 		VoteCache:      voteCache,
+		GrpcClient:     grpcClient,
 	})
 
 	voteHandler := vote.NewHandler(&vote.HandlerConfig{
@@ -151,7 +158,8 @@ func assertErrorResponse(t *testing.T, resp *http.Response, expectedStatus int, 
 func TestCreateVoteValidation(t *testing.T) {
 	voteRepository := InitMockVoteRepository()
 	voteCache := InitMockVoteCache()
-	voteHandler := wireupHandler(t, voteRepository, voteCache)
+	voteGrpcClient := InitMockVoteGrpcClient()
+	voteHandler := wireupHandler(t, voteRepository, voteCache, voteGrpcClient)
 
 	validPollId := uuid.New().String()
 	validOptionId := uuid.New().String()
@@ -223,7 +231,8 @@ func TestCreateVoteValidation(t *testing.T) {
 func TestCreateVoteSuccess(t *testing.T) {
 	voteRepository := InitMockVoteRepository()
 	voteCache := InitMockVoteCache()
-	voteHandler := wireupHandler(t, voteRepository, voteCache)
+	voteGrpcClient := InitMockVoteGrpcClient()
+	voteHandler := wireupHandler(t, voteRepository, voteCache, voteGrpcClient)
 
 	pollId := uuid.New().String()
 	optionId := uuid.New().String()
@@ -278,7 +287,8 @@ func TestCreateVoteAlreadyVoted(t *testing.T) {
 	voteCache.HasVotedFunc = func(ctx context.Context, pollID, sessionID string) (bool, error) {
 		return true, nil
 	}
-	voteHandler := wireupHandler(t, voteRepository, voteCache)
+	voteGrpcClient := InitMockVoteGrpcClient()
+	voteHandler := wireupHandler(t, voteRepository, voteCache, voteGrpcClient)
 
 	app := setupRouter(t, voteHandler)
 	resp := postVoteRequest(t, app, "/api/v1/votes", map[string]any{
@@ -299,7 +309,8 @@ func TestCreateVoteInvalidOption(t *testing.T) {
 	voteCache.IsValidOptionFunc = func(ctx context.Context, pollID, optionID string) (bool, error) {
 		return false, nil
 	}
-	voteHandler := wireupHandler(t, voteRepository, voteCache)
+	voteGrpcClient := InitMockVoteGrpcClient()
+	voteHandler := wireupHandler(t, voteRepository, voteCache, voteGrpcClient)
 
 	app := setupRouter(t, voteHandler)
 	resp := postVoteRequest(t, app, "/api/v1/votes", map[string]any{
@@ -320,7 +331,8 @@ func TestCreateVoteInternalServerError(t *testing.T) {
 		return types.CreateVoteResponse{}, errors.New("database unavailable")
 	}
 	voteCache := InitMockVoteCache()
-	voteHandler := wireupHandler(t, voteRepository, voteCache)
+	voteGrpcClient := InitMockVoteGrpcClient()
+	voteHandler := wireupHandler(t, voteRepository, voteCache, voteGrpcClient)
 
 	app := setupRouter(t, voteHandler)
 	resp := postVoteRequest(t, app, "/api/v1/votes", map[string]any{
@@ -332,6 +344,111 @@ func TestCreateVoteInternalServerError(t *testing.T) {
 	errorResponse := assertErrorResponse(t, resp, http.StatusInternalServerError, "INTERNAL_ERROR")
 	if errorResponse.Error.Message != "internal server error" {
 		t.Fatalf("expected error message %q, got %q", "internal server error", errorResponse.Error.Message)
+	}
+}
+
+func TestCreateVoteGrpcClientResponses(t *testing.T) {
+	pollID := uuid.New().String()
+	optionID := uuid.New().String()
+	sessionID := "session-abc"
+
+	tests := []struct {
+		name           string
+		grpcResponse   *pollv1.ValidatePollResponse
+		grpcErr        error
+		expectedStatus int
+		expectedCode   string
+		expectedMsg    string
+		assertResponse func(*testing.T, *http.Response)
+	}{
+		{
+			name:           "grpc client returns valid response",
+			grpcResponse:   &pollv1.ValidatePollResponse{IsValid: true},
+			expectedStatus: http.StatusOK,
+			assertResponse: func(t *testing.T, resp *http.Response) {
+				t.Helper()
+				successResponse := decodeResponse[response.SuccessResponse](t, resp)
+				if successResponse.State != "success" {
+					t.Fatalf("expected state %q, got %q", "success", successResponse.State)
+				}
+			},
+		},
+		{
+			name:           "grpc client returns poll not found",
+			grpcResponse:   &pollv1.ValidatePollResponse{IsValid: false, Reason: pollv1.ValidatePollResponse_POLL_NOT_FOUND},
+			expectedStatus: http.StatusNotFound,
+			expectedCode:   "POLL_NOT_FOUND",
+			expectedMsg:    shared.ErrPollNotFound.Error(),
+		},
+		{
+			name:           "grpc client returns poll expired",
+			grpcResponse:   &pollv1.ValidatePollResponse{IsValid: false, Reason: pollv1.ValidatePollResponse_POLL_EXPIRED},
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "POLL_EXPIRED",
+			expectedMsg:    shared.ErrPollExpired.Error(),
+		},
+		{
+			name:           "grpc client returns poll not started",
+			grpcResponse:   &pollv1.ValidatePollResponse{IsValid: false, Reason: pollv1.ValidatePollResponse_POLL_NOT_STARTED},
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "POLL_NOT_STARTED",
+			expectedMsg:    shared.ErrPollNotStarted.Error(),
+		},
+		{
+			name:           "grpc client returns poll closed",
+			grpcResponse:   &pollv1.ValidatePollResponse{IsValid: false, Reason: pollv1.ValidatePollResponse_POLL_CLOSED},
+			expectedStatus: http.StatusBadRequest,
+			expectedCode:   "POLL_CLOSED",
+			expectedMsg:    shared.ErrPollClosed.Error(),
+		},
+		{
+			name:           "grpc client returns unspecified reason",
+			grpcResponse:   &pollv1.ValidatePollResponse{IsValid: false, Reason: pollv1.ValidatePollResponse_REASON_UNSPECIFIED},
+			expectedStatus: http.StatusNotFound,
+			expectedCode:   "POLL_NOT_FOUND",
+			expectedMsg:    shared.ErrPollNotFound.Error(),
+		},
+		{
+			name:           "grpc client returns an error",
+			grpcErr:        errors.New("grpc unavailable"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedCode:   "INTERNAL_ERROR",
+			expectedMsg:    "internal server error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			voteRepository := InitMockVoteRepository()
+			voteCache := InitMockVoteCache()
+			voteCache.GetPollMetaFunc = func(ctx context.Context, pollID string) (*types.PollMeta, error) {
+				return nil, shared.ErrPollNotFound
+			}
+
+			grpcClient := &MockVoteGrpcClient{
+				ValidatePollForVotingFunc: func(ctx context.Context, pollID string) (*pollv1.ValidatePollResponse, error) {
+					return tt.grpcResponse, tt.grpcErr
+				},
+			}
+
+			voteHandler := wireupHandler(t, voteRepository, voteCache, grpcClient)
+			app := setupRouter(t, voteHandler)
+			resp := postVoteRequest(t, app, "/api/v1/votes", map[string]any{
+				"sessionId": sessionID,
+				"pollId":    pollID,
+				"optionId":  optionID,
+			})
+
+			if tt.assertResponse != nil {
+				tt.assertResponse(t, resp)
+				return
+			}
+
+			errorResponse := assertErrorResponse(t, resp, tt.expectedStatus, tt.expectedCode)
+			if errorResponse.Error.Message != tt.expectedMsg {
+				t.Fatalf("expected error message %q, got %q", tt.expectedMsg, errorResponse.Error.Message)
+			}
+		})
 	}
 }
 
@@ -360,11 +477,27 @@ func (m *MockVoteRepository) CreateVote(ctx context.Context, id string, vote typ
 	return m.CreateVoteFunc(ctx, id, vote)
 }
 
+type MockVoteGrpcClient struct {
+	ValidatePollForVotingFunc func(ctx context.Context, pollID string) (*pollv1.ValidatePollResponse, error)
+}
+
+func InitMockVoteGrpcClient() *MockVoteGrpcClient {
+	return &MockVoteGrpcClient{
+		ValidatePollForVotingFunc: func(ctx context.Context, pollID string) (*pollv1.ValidatePollResponse, error) {
+			return &pollv1.ValidatePollResponse{}, nil
+		},
+	}
+}
+
+func (m *MockVoteGrpcClient) ValidatePollForVoting(ctx context.Context, pollID string) (*pollv1.ValidatePollResponse, error) {
+	return m.ValidatePollForVotingFunc(ctx, pollID)
+}
+
 type MockVoteCache struct {
-	HasVotedFunc      func(ctx context.Context, pollID, sessionID string) (bool, error)
-	MarkVotedFunc     func(ctx context.Context, pollID, sessionID string, expiredAt time.Time) error
-	GetPollMetaFunc   func(ctx context.Context, pollID string) (*types.PollMeta, error)
-	IsValidOptionFunc func(ctx context.Context, pollID, optionID string) (bool, error)
+	HasVotedFunc        func(ctx context.Context, pollID, sessionID string) (bool, error)
+	MarkVotedFunc       func(ctx context.Context, pollID, sessionID string, expiredAt time.Time) error
+	GetPollMetaFunc     func(ctx context.Context, pollID string) (*types.PollMeta, error)
+	IsValidOptionFunc   func(ctx context.Context, pollID, optionID string) (bool, error)
 	DeleteVoteCacheFunc func(ctx context.Context, pollID string) error
 }
 
