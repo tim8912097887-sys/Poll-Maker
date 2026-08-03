@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  vote-service-build:
+  vote-service-build-and-unit-test:
     runs-on: ubuntu-latest
     defaults:
       run:
