@@ -2,12 +2,18 @@ package vote
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
+	pollv1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/proto"
 )
+
+type GrpcClient interface {
+	ValidatePollForVoting(ctx context.Context, pollID string) (*pollv1.ValidatePollResponse, error)
+}
 
 type VoteRepository interface {
 	CreateVote(ctx context.Context,id string, vote types.CreateVoteSchema) (types.CreateVoteResponse, error)
@@ -24,17 +30,20 @@ type VoteCache interface {
 type service struct{
 	voteRepository VoteRepository
 	voteCache VoteCache
+	grpcClient GrpcClient
 }
 
 type ServiceConfig struct {
 	VoteRepository VoteRepository
 	VoteCache VoteCache
+	GrpcClient GrpcClient
 }
 
 func NewService(serviceConfig *ServiceConfig) *service {
 	return &service{
 		voteRepository: serviceConfig.VoteRepository,
 		voteCache: serviceConfig.VoteCache,
+		grpcClient: serviceConfig.GrpcClient,
 	}
 }
 
@@ -53,7 +62,36 @@ func (s *service) CreateVote(ctx context.Context,vote types.CreateVoteSchema) (t
 	// Check poll meta
 	pollMeta, err = s.voteCache.GetPollMeta(ctx, vote.PollId)
 	if err != nil {
-		return types.CreateVoteDto{}, err
+		// Fallback to grpc if cache is not available
+		if errors.Is(err, shared.ErrPollNotFound) {
+
+			validatePollResponse, err := s.grpcClient.ValidatePollForVoting(ctx, vote.PollId)
+			if err != nil {
+				return types.CreateVoteDto{}, err
+			}
+			if !validatePollResponse.IsValid {
+				switch validatePollResponse.Reason {
+				case pollv1.ValidatePollResponse_POLL_NOT_FOUND:
+					return types.CreateVoteDto{}, shared.ErrPollNotFound
+				case pollv1.ValidatePollResponse_POLL_EXPIRED:
+					return types.CreateVoteDto{}, shared.ErrPollExpired
+				case pollv1.ValidatePollResponse_POLL_NOT_STARTED:
+					return types.CreateVoteDto{}, shared.ErrPollNotStarted
+				case pollv1.ValidatePollResponse_POLL_CLOSED:
+					return types.CreateVoteDto{}, shared.ErrPollClosed
+				case pollv1.ValidatePollResponse_REASON_UNSPECIFIED:
+					return types.CreateVoteDto{}, shared.ErrPollNotFound
+				default:
+					return types.CreateVoteDto{}, shared.ErrPollNotFound
+				}
+			} else {
+				pollMeta = &types.PollMeta{
+					ExpiredAt: validatePollResponse.ExpiredAt.AsTime(),
+				}
+			}
+		} else {
+			return types.CreateVoteDto{}, err
+		}
 	}
 
 	// Check valid option

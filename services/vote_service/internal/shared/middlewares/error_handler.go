@@ -20,6 +20,15 @@ func ErrorHandlerMiddleware() func (c fiber.Ctx, err error) {
 		case errors.Is(err,shared.ErrPollNotFound):
 			c.Status(fiber.StatusNotFound).JSON(response.NewErrorResponse("POLL_NOT_FOUND", err.Error(),nil))
 			return
+		case errors.Is(err, shared.ErrPollExpired):
+			c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("POLL_EXPIRED", err.Error(),nil))
+			return
+		case errors.Is(err, shared.ErrPollClosed): 
+			c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("POLL_CLOSED", err.Error(),nil))
+			return
+		case errors.Is(err, shared.ErrPollNotStarted):
+			c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("POLL_NOT_STARTED", err.Error(),nil))
+			return
 		default:
 			c.Status(fiber.StatusInternalServerError).JSON(response.NewErrorResponse("INTERNAL_ERROR", "internal server error",nil))
 			return

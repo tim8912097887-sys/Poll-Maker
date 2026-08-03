@@ -6,4 +6,7 @@ var (
 	ErrAlreadyVoted = errors.New("already voted")
 	ErrInvalidOption = errors.New("invalid option")
 	ErrPollNotFound = errors.New("poll not found")
+	ErrPollExpired = errors.New("poll expired")
+	ErrPollClosed = errors.New("poll closed")
+	ErrPollNotStarted = errors.New("poll not started")
 )
