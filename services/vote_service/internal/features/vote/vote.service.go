@@ -92,7 +92,6 @@ func (s *service) CreateVote(ctx context.Context,vote types.CreateVoteSchema) (t
 				} else {
 					return types.CreateVoteDto{}, err
 				}
-				return types.CreateVoteDto{}, err
 		}
 
 		// Check valid option
