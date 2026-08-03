@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared"
-	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/middlewares"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
@@ -72,7 +71,6 @@ func wireupHandler(t *testing.T, voteRepository *MockVoteRepository, voteCache *
 	voteHandler := vote.NewHandler(&vote.HandlerConfig{
 		VoteService:  voteService,
 		Logger:       logger,
-		ErrorHandler: middlewares.ErrorHandlerMiddleware(),
 	})
 	return voteHandler
 }

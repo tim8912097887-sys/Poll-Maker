@@ -8,8 +8,7 @@ import (
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response"
 )
 
-func ErrorHandlerMiddleware() func (c fiber.Ctx, err error) {
-	return func (c fiber.Ctx, err error) {
+func ErrorHandlerMiddleware (c fiber.Ctx, err error) {
 		switch {
 		case errors.Is(err,shared.ErrAlreadyVoted):
 			c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("AREADY_VOTED", err.Error(),nil))
@@ -29,9 +28,11 @@ func ErrorHandlerMiddleware() func (c fiber.Ctx, err error) {
 		case errors.Is(err, shared.ErrPollNotStarted):
 			c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("POLL_NOT_STARTED", err.Error(),nil))
 			return
+		case errors.Is(err, shared.ErrTimeout):
+			c.Status(fiber.StatusRequestTimeout).JSON(response.NewErrorResponse("TIMEOUT", err.Error(),nil))
+			return
 		default:
 			c.Status(fiber.StatusInternalServerError).JSON(response.NewErrorResponse("INTERNAL_ERROR", "internal server error",nil))
 			return
 		}
-	}
 }

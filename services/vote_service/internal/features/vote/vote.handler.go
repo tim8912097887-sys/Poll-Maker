@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/timeout"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/middlewares"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 )
@@ -18,28 +21,28 @@ type VoteService interface {
 type Handler struct {
 	voteService VoteService
 	logger      *slog.Logger
-    errorHandler    func(fiber.Ctx, error)
 }
 
 type HandlerConfig struct {
 	Logger     *slog.Logger
 	VoteService VoteService
-	ErrorHandler    func(fiber.Ctx, error)
 }
 
 func NewHandler(handlerConfig *HandlerConfig) *Handler {
 	return &Handler{
 		voteService: handlerConfig.VoteService, 
 		logger: handlerConfig.Logger,
-		errorHandler: handlerConfig.ErrorHandler,
 	}
 }
 
 func (h *Handler) RegisterRoutes(app fiber.Router) {
-	app.Post("", h.CreateVote)
+	app.Post("", timeout.New(h.CreateVote,timeout.Config{
+		Timeout: 3 * time.Second,
+		OnTimeout: middlewares.TimoutErrorHandler,
+	}))
 }
 
-func (h *Handler) CreateVote(c fiber.Ctx) {
+func (h *Handler) CreateVote(c fiber.Ctx) error {
 	var vote types.CreateVoteSchema
 
     if err := c.Bind().Body(&vote); err != nil {
@@ -55,16 +58,16 @@ func (h *Handler) CreateVote(c fiber.Ctx) {
                 })
             }
             c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("validation_error", "invalid request body", &out))
-            return
+            return nil
 		}
 		c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("invalid_request", "invalid request body",nil))
-		return
+		return nil
     }
 	createdVote, err := h.voteService.CreateVote(c.Context(),vote)
 	if err != nil {
 		h.logger.Error("failed to create vote",slog.Any("error", err))
-		h.errorHandler(c, err)
-		return
+		middlewares.ErrorHandlerMiddleware(c, err)
+		return nil
 	}
 
 	data := map[string]any{
@@ -72,4 +75,5 @@ func (h *Handler) CreateVote(c fiber.Ctx) {
 		"vote":    createdVote,
 	}
 	c.Status(fiber.StatusOK).JSON(response.NewSuccessResponse(data))
+	return nil
 }

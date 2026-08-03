@@ -9,4 +9,5 @@ var (
 	ErrPollExpired = errors.New("poll expired")
 	ErrPollClosed = errors.New("poll closed")
 	ErrPollNotStarted = errors.New("poll not started")
+	ErrTimeout = errors.New("timeout")
 )
