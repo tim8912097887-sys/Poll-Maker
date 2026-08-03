@@ -49,75 +49,76 @@ func NewService(serviceConfig *ServiceConfig) *service {
 
 func (s *service) CreateVote(ctx context.Context,vote types.CreateVoteSchema) (types.CreateVoteDto, error) {
 	
-	// Check if voted
-	voted, err := s.voteCache.HasVoted(ctx, vote.PollId, vote.SessionId)
-	if err != nil {
-		return types.CreateVoteDto{}, err
-	}
-	if voted {
-		return types.CreateVoteDto{}, shared.ErrAlreadyVoted
-	}
-
-	var pollMeta *types.PollMeta
-	// Check poll meta
-	pollMeta, err = s.voteCache.GetPollMeta(ctx, vote.PollId)
-	if err != nil {
-		// Fallback to grpc if cache is not available
-		if errors.Is(err, shared.ErrPollNotFound) {
-
-			validatePollResponse, err := s.grpcClient.ValidatePollForVoting(ctx, vote.PollId)
-			if err != nil {
-				return types.CreateVoteDto{}, err
-			}
-			if !validatePollResponse.IsValid {
-				switch validatePollResponse.Reason {
-				case pollv1.ValidatePollResponse_POLL_NOT_FOUND:
-					return types.CreateVoteDto{}, shared.ErrPollNotFound
-				case pollv1.ValidatePollResponse_POLL_EXPIRED:
-					return types.CreateVoteDto{}, shared.ErrPollExpired
-				case pollv1.ValidatePollResponse_POLL_NOT_STARTED:
-					return types.CreateVoteDto{}, shared.ErrPollNotStarted
-				case pollv1.ValidatePollResponse_POLL_CLOSED:
-					return types.CreateVoteDto{}, shared.ErrPollClosed
-				case pollv1.ValidatePollResponse_REASON_UNSPECIFIED:
-					return types.CreateVoteDto{}, shared.ErrPollNotFound
-				default:
-					return types.CreateVoteDto{}, shared.ErrPollNotFound
-				}
-			} else {
-				pollMeta = &types.PollMeta{
-					ExpiredAt: validatePollResponse.ExpiredAt.AsTime(),
-				}
-			}
-		} else {
+	    // Check if voted
+		voted, err := s.voteCache.HasVoted(ctx, vote.PollId, vote.SessionId)
+		if err != nil {
 			return types.CreateVoteDto{}, err
 		}
-	}
+		if voted {
+			return types.CreateVoteDto{}, shared.ErrAlreadyVoted
+		}
 
-	// Check valid option
-	valid, err := s.voteCache.IsValidOption(ctx, vote.PollId, vote.OptionId)
-	if err != nil {
-		return types.CreateVoteDto{}, err
-	}
-	if !valid {
-		return types.CreateVoteDto{}, shared.ErrInvalidOption
-	}
+		var pollMeta *types.PollMeta
+		// Check poll meta
+		pollMeta, err = s.voteCache.GetPollMeta(ctx, vote.PollId)
+		if err != nil {
+			// Fallback to grpc if cache is not available
+				if errors.Is(err, shared.ErrPollNotFound) {
 
-	// Create vote first in db to prevent race condition
-	id := uuid.New().String()
+					validatePollResponse, err := s.grpcClient.ValidatePollForVoting(ctx, vote.PollId)
+					if err != nil {
+						return types.CreateVoteDto{}, err
+					}
+					if !validatePollResponse.IsValid {
+						switch validatePollResponse.Reason {
+						case pollv1.ValidatePollResponse_POLL_NOT_FOUND:
+							return types.CreateVoteDto{}, shared.ErrPollNotFound
+						case pollv1.ValidatePollResponse_POLL_EXPIRED:
+							return types.CreateVoteDto{}, shared.ErrPollExpired
+						case pollv1.ValidatePollResponse_POLL_NOT_STARTED:
+							return types.CreateVoteDto{}, shared.ErrPollNotStarted
+						case pollv1.ValidatePollResponse_POLL_CLOSED:
+							return types.CreateVoteDto{}, shared.ErrPollClosed
+						case pollv1.ValidatePollResponse_REASON_UNSPECIFIED:
+							return types.CreateVoteDto{}, shared.ErrPollNotFound
+						default:
+							return types.CreateVoteDto{}, shared.ErrPollNotFound
+						}
+					} else {
+						pollMeta = &types.PollMeta{
+							ExpiredAt: validatePollResponse.ExpiredAt.AsTime(),
+						}
+					}
+				} else {
+					return types.CreateVoteDto{}, err
+				}
+				return types.CreateVoteDto{}, err
+		}
 
-	createdVote, err := s.voteRepository.CreateVote(ctx ,id, vote)
-	if err != nil {
-		return types.CreateVoteDto{}, err
-	}
+		// Check valid option
+		valid, err := s.voteCache.IsValidOption(ctx, vote.PollId, vote.OptionId)
+		if err != nil {
+			return types.CreateVoteDto{}, err
+		}
+		if !valid {
+			return types.CreateVoteDto{}, shared.ErrInvalidOption
+		}
 
-	// Mark voted
-	err = s.voteCache.MarkVoted(ctx, vote.PollId, vote.SessionId, pollMeta.ExpiredAt)
-	if err != nil {
-		return types.CreateVoteDto{}, err
-	}
-	
-	return ToVoteDto(createdVote), nil
+		// Create vote first in db to prevent race condition
+		id := uuid.New().String()
+
+		createdVote, err := s.voteRepository.CreateVote(ctx ,id, vote)
+		if err != nil {
+			return types.CreateVoteDto{}, err
+		}
+
+		// Mark voted
+		err = s.voteCache.MarkVoted(ctx, vote.PollId, vote.SessionId, pollMeta.ExpiredAt)
+		if err != nil {
+			return types.CreateVoteDto{}, err
+		}
+		
+		return ToVoteDto(createdVote), nil
 }
 
 func ToVoteDto(vote types.CreateVoteResponse) types.CreateVoteDto {

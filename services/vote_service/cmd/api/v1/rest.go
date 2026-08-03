@@ -15,7 +15,6 @@ import (
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/cache"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
-	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/middlewares"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
 	pollv1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/proto"
@@ -66,7 +65,6 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 	voteHandlerConfig := vote.HandlerConfig{
 		VoteService: voteService, 
 		Logger: a.Config.Logger,
-		ErrorHandler: middlewares.ErrorHandlerMiddleware(),
 	}
 	voteHandler := vote.NewHandler(&voteHandlerConfig)
 	voteHandler.RegisterRoutes(voteRouter)
