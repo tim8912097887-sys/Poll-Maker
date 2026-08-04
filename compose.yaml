@@ -59,6 +59,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+      - "50051:50051"
     env_file:
       - ./services/poll_service/.env
     depends_on:
