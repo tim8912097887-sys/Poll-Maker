@@ -40,7 +40,7 @@ export async function seedPolls(
         title: 'Favorite Database',
         isPrivate: false,
         creatorSession: 'test' + randomUUID(),
-        startedAt: new Date(now.getTime() + 12 * 60 * 60 * 1000),
+        startedAt: new Date(now.getTime() - 12 * 60 * 60 * 1000),
         expiredAt: new Date(now.getTime() + 72 * 60 * 60 * 1000),
       },
       options: ['PostgreSQL', 'MySQL', 'MongoDB', 'SQLite'],
@@ -70,18 +70,21 @@ export async function seedPolls(
   ];
 
   for (const item of data) {
-    // Insert poll and options into the database
-    await db.insert(polls).values(item.poll);
-
-    await db.insert(pollOptions).values(
-      item.options.map((text) => ({
-        id: randomUUID(),
-        pollId: item.poll.id,
-        optionText: text,
-      })),
-    );
+    // Use transaction to avoid race conditions
+    await db.transaction(async (tx) => {
+      await tx.insert(polls).values(item.poll);
+      await tx.insert(pollOptions).values(
+        item.options.map((text) => ({
+          id: randomUUID(),
+          pollId: item.poll.id,
+          optionText: text,
+        })),
+      );
+    });
 
     // Insert poll and options into the cache
+    if (item.poll.expiredAt < now) continue;
+
     const pollKey = createPollKey(item.poll.id);
     await cache.hSet(pollKey, {
       StartedAt: item.poll.startedAt.toISOString(),

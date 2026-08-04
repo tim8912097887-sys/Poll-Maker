@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package poll.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service PollService {
+    rpc ValidatePollForVoting(ValidatePollRequest) returns (ValidatePollResponse); 
+}
+
+message ValidatePollRequest {
+    string poll_id = 1;
+}
+
+message ValidatePollResponse {
+    bool is_valid = 1;
+    ValidityReason reason = 2;
+    google.protobuf.Timestamp expired_at = 3;
+    enum ValidityReason {
+        REASON_UNSPECIFIED = 0;
+        OK = 1;
+        POLL_NOT_FOUND = 2;
+        POLL_EXPIRED = 3;
+        POLL_NOT_STARTED = 4;
+        POLL_CLOSED = 5;
+    }
+}

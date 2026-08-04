@@ -19,6 +19,12 @@ export class PollsRepository {
       .where(and(eq(polls.isPrivate, false), gt(polls.expiredAt, new Date())));
   }
 
+  async findPollById(id: string) {
+    const [poll] = await this.db.select().from(polls).where(eq(polls.id, id));
+
+    return poll;
+  }
+
   async createPoll(
     id: string,
     creatorSession: string,

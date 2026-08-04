@@ -5,6 +5,10 @@ import { PollsRepository } from './polls.repository';
 import { PollsCache } from './polls.cache';
 import { PollMeta } from './types/polls-cache-data';
 import { CacheNotFound } from './errors/cache-not-found';
+import { ValidatePollRequest } from 'src/proto/proto/poll';
+import { PollNotFound } from './errors/poll-not-found';
+import { PollExpired } from './errors/poll-expired';
+import { PollNotStarted } from './errors/poll-not-started';
 
 @Injectable()
 export class PollsService {
@@ -96,5 +100,21 @@ export class PollsService {
     await this.pollsCache.publishPollDelete(id);
 
     return `This action removes a #${id} poll`;
+  }
+
+  async validatePollForVoting(validatePollRequest: ValidatePollRequest) {
+    const poll = await this.pollsRepository.findPollById(
+      validatePollRequest.pollId,
+    );
+    if (!poll) {
+      throw new PollNotFound(validatePollRequest.pollId);
+    }
+    if (poll.expiredAt < new Date()) {
+      throw new PollExpired(validatePollRequest.pollId);
+    }
+    if (poll.startedAt > new Date()) {
+      throw new PollNotStarted(validatePollRequest.pollId);
+    }
+    return poll;
   }
 }

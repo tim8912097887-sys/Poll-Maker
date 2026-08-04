@@ -34,7 +34,8 @@ USER node
 # This includes the exact production node_modules and the exact production build!
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --chown=node:nod drizzle ./drizzle
+COPY --chown=node:node drizzle ./drizzle
+COPY --chown=node:node proto ./proto
 
 EXPOSE 3000
 
