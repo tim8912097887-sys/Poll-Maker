@@ -1,4 +1,34 @@
 services:
+  kafka-server:
+    image: apache/kafka:4.3.0
+    container_name: kafka-server
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-server:9093
+
+      # listeners
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-server:9092
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # single broker dev mode
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'nc -z localhost 9092'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - kafka-data:/var/lib/kafka/data
   polls-maker-cache:
     image: redis:8.0-alpine
     container_name: polls-maker-cache
@@ -67,6 +97,9 @@ services:
         condition: service_healthy
       poll-service-migrations:
         condition: service_completed_successfully
+      kafka-server:
+        condition: service_healthy
+    restart: always
   vote-service-migrations:
     build:
       context: ./services/vote_service
@@ -98,3 +131,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  kafka-data:
