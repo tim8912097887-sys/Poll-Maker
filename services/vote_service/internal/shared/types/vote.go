@@ -1,6 +1,10 @@
 package types
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Vote struct {
 	Id        string `json:"id"`
@@ -20,6 +24,7 @@ type CreateVoteResponse struct {
 	SessionId string    `json:"sessionId"`
 	PollId    uuid.UUID    `json:"pollId"`
 	OptionId  uuid.UUID    `json:"optionId"`
+	CreatedAt time.Time    `json:"createdAt"`
 }
 
 type CreateVoteDto struct {
@@ -29,3 +34,9 @@ type CreateVoteDto struct {
 	OptionId  string `json:"optionId"`
 }
 
+type CreateVoteEvent struct {
+	EventId string `json:"eventId"`
+	PollId  string `json:"pollId"`
+	OptionId  string `json:"optionId"`
+	VotedAt string `json:"votedAt"`
+}

@@ -2,6 +2,7 @@ package vote
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 	pollv1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/proto"
 )
+
+type VoteProducer interface {
+	Publish(ctx context.Context, topic string, key string, value []byte) error
+}
 
 type GrpcClient interface {
 	ValidatePollForVoting(ctx context.Context, pollID string) (*pollv1.ValidatePollResponse, error)
@@ -31,12 +36,14 @@ type service struct{
 	voteRepository VoteRepository
 	voteCache VoteCache
 	grpcClient GrpcClient
+	voteProducer VoteProducer
 }
 
 type ServiceConfig struct {
 	VoteRepository VoteRepository
 	VoteCache VoteCache
 	GrpcClient GrpcClient
+	VoteProducer VoteProducer
 }
 
 func NewService(serviceConfig *ServiceConfig) *service {
@@ -44,6 +51,7 @@ func NewService(serviceConfig *ServiceConfig) *service {
 		voteRepository: serviceConfig.VoteRepository,
 		voteCache: serviceConfig.VoteCache,
 		grpcClient: serviceConfig.GrpcClient,
+		voteProducer: serviceConfig.VoteProducer,
 	}
 }
 
@@ -116,7 +124,25 @@ func (s *service) CreateVote(ctx context.Context,vote types.CreateVoteSchema) (t
 		if err != nil {
 			return types.CreateVoteDto{}, err
 		}
-		
+
+		// Publish vote created event
+		event := types.CreateVoteEvent{
+			EventId: uuid.NewString(),
+			PollId:  createdVote.PollId.String(),
+			OptionId: createdVote.OptionId.String(),
+			VotedAt: createdVote.CreatedAt.Format(time.RFC3339),
+		}
+
+		eventBytes, err := json.Marshal(event)
+		if err != nil {
+			return types.CreateVoteDto{}, err
+		}
+
+		err = s.voteProducer.Publish(ctx, TopicVoteCreated, createdVote.OptionId.String(), eventBytes)
+		if err != nil {
+			return types.CreateVoteDto{}, err
+		}
+
 		return ToVoteDto(createdVote), nil
 }
 

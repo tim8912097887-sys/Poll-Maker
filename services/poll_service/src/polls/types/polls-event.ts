@@ -4,8 +4,3 @@ export type VoteCreatedMessage = {
   optionId: string;
   votedAt: string;
 };
-
-export type VoteCreatedEvent = {
-  key: string;
-  value: VoteCreatedMessage;
-};

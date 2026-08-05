@@ -127,6 +127,9 @@ services:
         condition: service_completed_successfully
       polls-maker-cache:
         condition: service_healthy
+      kafka-server:
+        condition: service_healthy
+    restart: always
 
 volumes:
   pgdata:
