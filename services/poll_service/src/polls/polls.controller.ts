@@ -23,7 +23,7 @@ import {
   KafkaContext,
   Payload,
 } from '@nestjs/microservices';
-import type { VoteCreatedEvent, VoteCreatedMessage } from './types/polls-event';
+import type { VoteCreatedMessage } from './types/polls-event';
 import { logger } from 'src/infrastructure/configs/logging/logger.config';
 
 @Controller('/api/v1/polls')
@@ -66,12 +66,11 @@ export class PollsController {
 
   @EventPattern('vote.created')
   async handleVoteCreated(
-    @Payload() message: VoteCreatedEvent,
+    @Payload() message: VoteCreatedMessage,
     @Ctx() context: KafkaContext,
   ) {
     try {
-      const data: VoteCreatedMessage = message.value;
-      await this.pollsService.updateVoteCount(data.pollId, data.optionId);
+      await this.pollsService.updateVoteCount(message.pollId, message.optionId);
     } catch (error) {
       logger.error(error);
     }

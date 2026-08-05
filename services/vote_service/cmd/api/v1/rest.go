@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
@@ -28,6 +29,7 @@ type ApiConfig struct {
 	Db *pgxpool.Pool
 	CacheClient *redis.Client
 	ShutdownManager *shutdown.Manager
+	Producer sarama.SyncProducer
 }
 
 type Api struct {
@@ -56,10 +58,15 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 	}
 	grpcClient := pollv1.NewPollServiceClient(grpcConn)
 	voteGrpcClient := vote.NewGrpcVoteService(grpcClient)
+	voteProducer := vote.NewProducer(vote.ProducerConfig{
+		Producer: a.Config.Producer,
+		Logger: a.Config.Logger,
+	})
 	voteServiceConfig := vote.ServiceConfig{
 		VoteRepository: voteRepository,
 		VoteCache: voteCache,
 		GrpcClient: voteGrpcClient,
+		VoteProducer: voteProducer,
 	}
 	voteService := vote.NewService(&voteServiceConfig)
 	voteHandlerConfig := vote.HandlerConfig{
