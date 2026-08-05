@@ -17,6 +17,14 @@ import { GetPollsDto } from './dto/get-polls.dto';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { successResponse } from 'src/shared/response/success';
 import { ServerSuccess } from 'src/shared/response/types';
+import {
+  Ctx,
+  EventPattern,
+  KafkaContext,
+  Payload,
+} from '@nestjs/microservices';
+import type { VoteCreatedEvent, VoteCreatedMessage } from './types/polls-event';
+import { logger } from 'src/infrastructure/configs/logging/logger.config';
 
 @Controller('/api/v1/polls')
 export class PollsController {
@@ -54,5 +62,18 @@ export class PollsController {
     const result = await this.pollsService.deletePoll(id);
     const data = { message: result };
     return successResponse(data);
+  }
+
+  @EventPattern('vote.created')
+  async handleVoteCreated(
+    @Payload() message: VoteCreatedEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    try {
+      const data: VoteCreatedMessage = message.value;
+      await this.pollsService.updateVoteCount(data.pollId, data.optionId);
+    } catch (error) {
+      logger.error(error);
+    }
   }
 }

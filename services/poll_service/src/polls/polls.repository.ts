@@ -20,7 +20,29 @@ export class PollsRepository {
   }
 
   async findPollById(id: string) {
-    const [poll] = await this.db.select().from(polls).where(eq(polls.id, id));
+    const [poll] = await this.db
+      .select({
+        id: polls.id,
+        title: polls.title,
+        isPrivate: polls.isPrivate,
+        creatorSession: polls.creatorSession,
+        createdAt: polls.createdAt,
+        startedAt: polls.startedAt,
+        expiredAt: polls.expiredAt,
+        options: sql<string[]>`json_agg(${pollOptions.id})`,
+      })
+      .from(polls)
+      .innerJoin(pollOptions, eq(polls.id, pollOptions.pollId))
+      .where(eq(polls.id, id))
+      .groupBy(
+        polls.id,
+        polls.title,
+        polls.isPrivate,
+        polls.creatorSession,
+        polls.createdAt,
+        polls.startedAt,
+        polls.expiredAt,
+      );
 
     return poll;
   }
@@ -52,34 +74,20 @@ export class PollsRepository {
     });
 
     // Get created poll
-    const [createdPoll] = await this.db
-      .select({
-        id: polls.id,
-        title: polls.title,
-        isPrivate: polls.isPrivate,
-        creatorSession: polls.creatorSession,
-        createdAt: polls.createdAt,
-        startedAt: polls.startedAt,
-        expiredAt: polls.expiredAt,
-        options: sql<string[]>`json_agg(${pollOptions.id})`,
-      })
-      .from(polls)
-      .innerJoin(pollOptions, eq(polls.id, pollOptions.pollId))
-      .where(eq(polls.id, id))
-      .groupBy(
-        polls.id,
-        polls.title,
-        polls.isPrivate,
-        polls.creatorSession,
-        polls.createdAt,
-        polls.startedAt,
-        polls.expiredAt,
-      );
+    const createdPoll = await this.findPollById(id);
 
     return createdPoll;
   }
 
   async deletePoll(id: string) {
     return this.db.delete(polls).where(eq(polls.id, id));
+  }
+
+  async updatePollOption(pollId: string, optionId: string) {
+    // Prevent race condition by directly updating the row
+    return this.db
+      .update(pollOptions)
+      .set({ voteCounts: sql<number>`vote_counts + 1` })
+      .where(and(eq(pollOptions.id, optionId), eq(pollOptions.pollId, pollId)));
   }
 }
