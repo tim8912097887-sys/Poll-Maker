@@ -18,8 +18,8 @@ func NewRepository(db *pgxpool.Pool) *repository {
 func (r *repository) CreateVote(ctx context.Context,id string, vote types.CreateVoteSchema) (types.CreateVoteResponse, error) {
     
 	var createdVote types.CreateVoteResponse
-	sqlString := `INSERT INTO votes (id, session_id, poll_id, option_id) VALUES ($1, $2, $3, $4) RETURNING id, session_id, poll_id, option_id;`
-	err := r.db.QueryRow(ctx, sqlString, id, vote.SessionId, vote.PollId, vote.OptionId).Scan(&createdVote.Id, &createdVote.SessionId, &createdVote.PollId, &createdVote.OptionId)
+	sqlString := `INSERT INTO votes (id, session_id, poll_id, option_id) VALUES ($1, $2, $3, $4) RETURNING id, session_id, poll_id, option_id, created_at;`
+	err := r.db.QueryRow(ctx, sqlString, id, vote.SessionId, vote.PollId, vote.OptionId).Scan(&createdVote.Id, &createdVote.SessionId, &createdVote.PollId, &createdVote.OptionId, &createdVote.CreatedAt)
 	if err != nil {
 		return types.CreateVoteResponse{}, err
 	}

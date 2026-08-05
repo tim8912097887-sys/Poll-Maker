@@ -10,6 +10,7 @@ import (
 
 	v1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/cmd/api/v1"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/cache"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/event"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/persistence"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/shutdown"
@@ -49,12 +50,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize event broker
+	eventBroker := event.NewEventBroker(event.EventBrokerConfig{
+		Brokers: []string{"kafka-server:9092"},
+		ShutdownManager: shutdownManager,
+		Logger: logger,
+	})
+
+	err = eventBroker.Init()
+	if err != nil {
+		logger.Error("failed to initialize event broker",slog.Any("error", err))
+		os.Exit(1)
+	}
 	v1Api := v1.Api{ Config: v1.ApiConfig{
 		Logger: logger, 
 		EnvConfigs: envConfigs,
 		CacheClient: rdb,
 		Db: pool,
 		ShutdownManager: shutdownManager,
+		Producer: eventBroker.GetBroker(),
 	} }
 
 	if err := v1Api.Run(ctx, v1Api.Mount(ctx), 5*time.Second); err != nil {
