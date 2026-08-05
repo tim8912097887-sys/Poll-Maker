@@ -9,6 +9,7 @@ import { ValidatePollRequest } from 'src/proto/proto/poll';
 import { PollNotFound } from './errors/poll-not-found';
 import { PollExpired } from './errors/poll-expired';
 import { PollNotStarted } from './errors/poll-not-started';
+import { PollOptionNotFound } from './errors/poll-option-not-found';
 
 @Injectable()
 export class PollsService {
@@ -103,17 +104,28 @@ export class PollsService {
   }
 
   async validatePollForVoting(validatePollRequest: ValidatePollRequest) {
-    const poll = await this.pollsRepository.findPollById(
-      validatePollRequest.pollId,
-    );
+    const poll = await this.checkPollStatus(validatePollRequest.pollId);
+    return poll;
+  }
+
+  async updateVoteCount(pollId: string, optionId: string) {
+    const poll = await this.checkPollStatus(pollId);
+    if (!poll.options.includes(optionId)) {
+      throw new PollOptionNotFound(pollId, optionId);
+    }
+    await this.pollsRepository.updatePollOption(pollId, optionId);
+  }
+
+  private async checkPollStatus(pollId: string) {
+    const poll = await this.pollsRepository.findPollById(pollId);
     if (!poll) {
-      throw new PollNotFound(validatePollRequest.pollId);
+      throw new PollNotFound(pollId);
     }
     if (poll.expiredAt < new Date()) {
-      throw new PollExpired(validatePollRequest.pollId);
+      throw new PollExpired(pollId);
     }
     if (poll.startedAt > new Date()) {
-      throw new PollNotStarted(validatePollRequest.pollId);
+      throw new PollNotStarted(pollId);
     }
     return poll;
   }
