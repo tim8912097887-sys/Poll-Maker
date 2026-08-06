@@ -66,6 +66,7 @@ func wireupHandler(t *testing.T, voteRepository *MockVoteRepository, voteCache *
 		VoteRepository: voteRepository,
 		VoteCache:      voteCache,
 		GrpcClient:     grpcClient,
+		Logger:         logger,
 	})
 
 	voteHandler := vote.NewHandler(&vote.HandlerConfig{
@@ -325,7 +326,7 @@ func TestCreateVoteInvalidOption(t *testing.T) {
 
 func TestCreateVoteInternalServerError(t *testing.T) {
 	voteRepository := InitMockVoteRepository()
-	voteRepository.CreateVoteFunc = func(ctx context.Context, id string, v types.CreateVoteSchema) (types.CreateVoteResponse, error) {
+	voteRepository.CreateVoteFunc = func(ctx context.Context, id string, vote types.CreateVoteSchema, createVoteEvent types.CreateVoteEvent, expiredAt time.Time) (types.CreateVoteResponse, error) {
 		return types.CreateVoteResponse{}, errors.New("database unavailable")
 	}
 	voteCache := InitMockVoteCache()
@@ -455,12 +456,14 @@ func TestCreateVoteGrpcClientResponses(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type MockVoteRepository struct {
-	CreateVoteFunc func(ctx context.Context, id string, vote types.CreateVoteSchema) (types.CreateVoteResponse, error)
+	CreateVoteFunc func(ctx context.Context,id string, vote types.CreateVoteSchema, createVoteEvent types.CreateVoteEvent,expiredAt time.Time) (types.CreateVoteResponse, error)
+    GetOutboxEventsFunc func(ctx context.Context,limit int) ([]types.CreateVoteEvent, error)
+    UpdateOutboxEventsFunc func(ctx context.Context, eventIds []string) error
 }
 
 func InitMockVoteRepository() *MockVoteRepository {
 	return &MockVoteRepository{
-		CreateVoteFunc: func(ctx context.Context, id string, vote types.CreateVoteSchema) (types.CreateVoteResponse, error) {
+		CreateVoteFunc: func(ctx context.Context,id string, vote types.CreateVoteSchema, createVoteEvent types.CreateVoteEvent,expiredAt time.Time) (types.CreateVoteResponse, error) {
 			return types.CreateVoteResponse{
 				Id:        uuid.MustParse(id),
 				SessionId: vote.SessionId,
@@ -468,11 +471,32 @@ func InitMockVoteRepository() *MockVoteRepository {
 				OptionId:  uuid.MustParse(vote.OptionId),
 			}, nil
 		},
+		GetOutboxEventsFunc: func(ctx context.Context,limit int) ([]types.CreateVoteEvent, error) {
+			return []types.CreateVoteEvent{
+				{
+					EventId:   uuid.NewString(),
+					PollId:    uuid.NewString(),
+					OptionId:  uuid.NewString(),
+					VotedAt:   time.Now().Format(time.RFC3339),
+				},
+			}, nil
+		},
+		UpdateOutboxEventsFunc: func(ctx context.Context, eventIds []string) error {
+			return nil
+		},
 	}
 }
 
-func (m *MockVoteRepository) CreateVote(ctx context.Context, id string, vote types.CreateVoteSchema) (types.CreateVoteResponse, error) {
-	return m.CreateVoteFunc(ctx, id, vote)
+func (m *MockVoteRepository)CreateVote(ctx context.Context,id string, vote types.CreateVoteSchema, createVoteEvent types.CreateVoteEvent,expiredAt time.Time) (types.CreateVoteResponse, error) {
+	return m.CreateVoteFunc(ctx, id, vote, createVoteEvent, expiredAt)
+}
+
+func (m *MockVoteRepository) GetOutboxEvents(ctx context.Context,limit int) ([]types.CreateVoteEvent, error) {
+	return m.GetOutboxEvents(ctx,limit)
+}
+
+func (m *MockVoteRepository) UpdateOutboxEvents(ctx context.Context, eventIds []string) error {
+	return m.UpdateOutboxEventsFunc(ctx, eventIds)
 }
 
 type MockVoteGrpcClient struct {
