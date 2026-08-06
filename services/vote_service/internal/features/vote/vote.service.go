@@ -23,8 +23,8 @@ type GrpcClient interface {
 
 type VoteRepository interface {
 	 CreateVote(ctx context.Context,id string, vote types.CreateVoteSchema, createVoteEvent types.CreateVoteEvent,expiredAt time.Time) (types.CreateVoteResponse, error)
-     GetOutboxEvent(ctx context.Context) (types.CreateVoteEvent, error)
-     UpdateOutboxEvent(ctx context.Context, eventId string) error
+     GetOutboxEvents(ctx context.Context,limit int) ([]types.CreateVoteEvent, error)
+     UpdateOutboxEvents(ctx context.Context, eventIds []string) error
 }
 
 type VoteCache interface {
@@ -157,7 +157,7 @@ func (s *service) ProcessOutboxEvents(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				outboxEvent, err := s.voteRepository.GetOutboxEvent(ctx)
+				outboxEvents, err := s.voteRepository.GetOutboxEvents(ctx, 10)
 				if err != nil {
 					// Expected error
 					if errors.Is(err, shared.ErrOutboxEventNotFound) {
@@ -167,22 +167,30 @@ func (s *service) ProcessOutboxEvents(ctx context.Context) {
 					continue
 				}
 
-				// Serialize event
-				eventBytes, err := json.Marshal(outboxEvent)
-				if err != nil {
-					s.logger.Error("failed to marshal outbox event", slog.Any("error", err))
-					continue
-				}
-				// Process event
-				err = s.voteProducer.Publish(ctx,TopicVoteCreated, outboxEvent.OptionId, eventBytes)
-				// Don't update when publish failed for later retry
-				if err != nil {
-					s.logger.Error("failed to publish outbox event", slog.Any("error", err))
-					continue
+				successIds := make([]string, 0, len(outboxEvents))
+
+				for _, outboxEvent := range outboxEvents {
+				
+					// Serialize event
+					eventBytes, err := json.Marshal(outboxEvent)
+					if err != nil {
+						s.logger.Error("failed to marshal outbox event", slog.Any("error", err))
+						continue
+					}
+					// Process event
+					err = s.voteProducer.Publish(ctx,TopicVoteCreated, outboxEvent.OptionId, eventBytes)
+					// Don't update when publish failed for later retry
+					if err != nil {
+						s.logger.Error("failed to publish outbox event", slog.Any("error", err))
+						continue
+					}
+
+					// Mark event as processed
+					successIds = append(successIds, outboxEvent.EventId)
 				}
 
 				// Update outbox event
-				err = s.voteRepository.UpdateOutboxEvent(ctx, outboxEvent.EventId)
+				err = s.voteRepository.UpdateOutboxEvents(ctx, successIds)
 				if err != nil {
 					s.logger.Error("failed to update outbox event", slog.Any("error", err))
 					continue

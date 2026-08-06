@@ -2,8 +2,6 @@ package vote
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -48,31 +46,44 @@ func (r *repository) CreateVote(ctx context.Context,id string, vote types.Create
 	return createdVote, nil
 }
 
-func (r *repository) GetOutboxEvent(ctx context.Context) (types.CreateVoteEvent, error) {
+func (r *repository) GetOutboxEvents(ctx context.Context,limit int) ([]types.CreateVoteEvent, error) {
 
-	var createVoteEvent types.CreateVoteEvent
-	var votedAt time.Time
+	events := make([]types.CreateVoteEvent, 0)
 	sqlString := `
 	SELECT event_id, poll_id, option_id, created_at FROM outbox_events
 	WHERE send_at IS NULL AND status = 'pending' AND expired_at > NOW() 
-	LIMIT 1
+	LIMIT $1
 	;`
 	
-	err := r.db.QueryRow(ctx, sqlString).Scan(&createVoteEvent.EventId, &createVoteEvent.PollId, &createVoteEvent.OptionId, &votedAt)
+	rows, err := r.db.Query(ctx, sqlString,limit)
 	if err != nil {
-		// Turn sql.ErrNoRows into business error
-		if errors.Is(err, sql.ErrNoRows) {
-			return types.CreateVoteEvent{}, shared.ErrOutboxEventNotFound
-		}
-		return types.CreateVoteEvent{}, err
+		return nil, err
 	}
-	createVoteEvent.VotedAt = votedAt.Format(time.RFC3339)
-	return createVoteEvent, nil
+	defer rows.Close()
+	for rows.Next() {
+		var createVoteEvent types.CreateVoteEvent
+		var votedAt time.Time
+		err := rows.Scan(&createVoteEvent.EventId, &createVoteEvent.PollId, &createVoteEvent.OptionId, &votedAt)
+		if err != nil {
+			return nil, err
+		}
+		createVoteEvent.VotedAt = votedAt.Format(time.RFC3339)
+		events = append(events, createVoteEvent)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(events) == 0 {
+        return nil, shared.ErrOutboxEventNotFound
+    }
+
+	return events, nil
 }
 
-func (r *repository) UpdateOutboxEvent(ctx context.Context, eventId string) error {
-	sqlString := `UPDATE outbox_events SET send_at = NOW(), status = 'sent' WHERE event_id = $1;`
-	_, err := r.db.Exec(ctx, sqlString, eventId)
+func (r *repository) UpdateOutboxEvents(ctx context.Context, eventIds []string) error {
+	sqlString := `UPDATE outbox_events SET send_at = NOW(), status = 'sent' WHERE event_id = ANY($1);`
+	_, err := r.db.Exec(ctx, sqlString, eventIds)
 	if err != nil {
 		return err
 	}
