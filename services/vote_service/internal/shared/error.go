@@ -10,4 +10,5 @@ var (
 	ErrPollClosed = errors.New("poll closed")
 	ErrPollNotStarted = errors.New("poll not started")
 	ErrTimeout = errors.New("timeout")
+	ErrOutboxEventNotFound = errors.New("outbox event not found")
 )

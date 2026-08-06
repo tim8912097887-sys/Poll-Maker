@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,7 +22,9 @@ type GrpcClient interface {
 }
 
 type VoteRepository interface {
-	CreateVote(ctx context.Context,id string, vote types.CreateVoteSchema) (types.CreateVoteResponse, error)
+	 CreateVote(ctx context.Context,id string, vote types.CreateVoteSchema, createVoteEvent types.CreateVoteEvent,expiredAt time.Time) (types.CreateVoteResponse, error)
+     GetOutboxEvent(ctx context.Context) (types.CreateVoteEvent, error)
+     UpdateOutboxEvent(ctx context.Context, eventId string) error
 }
 
 type VoteCache interface {
@@ -37,6 +40,7 @@ type service struct{
 	voteCache VoteCache
 	grpcClient GrpcClient
 	voteProducer VoteProducer
+	logger *slog.Logger
 }
 
 type ServiceConfig struct {
@@ -44,6 +48,7 @@ type ServiceConfig struct {
 	VoteCache VoteCache
 	GrpcClient GrpcClient
 	VoteProducer VoteProducer
+	Logger *slog.Logger
 }
 
 func NewService(serviceConfig *ServiceConfig) *service {
@@ -52,6 +57,7 @@ func NewService(serviceConfig *ServiceConfig) *service {
 		voteCache: serviceConfig.VoteCache,
 		grpcClient: serviceConfig.GrpcClient,
 		voteProducer: serviceConfig.VoteProducer,
+		logger: serviceConfig.Logger,
 	}
 }
 
@@ -100,21 +106,34 @@ func (s *service) CreateVote(ctx context.Context,vote types.CreateVoteSchema) (t
 				} else {
 					return types.CreateVoteDto{}, err
 				}
-		}
-
-		// Check valid option
-		valid, err := s.voteCache.IsValidOption(ctx, vote.PollId, vote.OptionId)
-		if err != nil {
-			return types.CreateVoteDto{}, err
-		}
-		if !valid {
-			return types.CreateVoteDto{}, shared.ErrInvalidOption
+		} else {
+            if pollMeta.ExpiredAt.Before(time.Now()) {
+				return types.CreateVoteDto{}, shared.ErrPollExpired
+			}
+			if pollMeta.StartedAt.After(time.Now()) {
+				return types.CreateVoteDto{}, shared.ErrPollNotStarted
+			}
+			// Check valid option
+			valid, err := s.voteCache.IsValidOption(ctx, vote.PollId, vote.OptionId)
+			if err != nil {
+				return types.CreateVoteDto{}, err
+			}
+			if !valid {
+				return types.CreateVoteDto{}, shared.ErrInvalidOption
+			}
 		}
 
 		// Create vote first in db to prevent race condition
 		id := uuid.New().String()
 
-		createdVote, err := s.voteRepository.CreateVote(ctx ,id, vote)
+		event := types.CreateVoteEvent{
+			EventId: uuid.NewString(),
+			PollId:  vote.PollId,
+			OptionId: vote.OptionId,
+			VotedAt: time.Now().Format(time.RFC3339),
+		}
+
+		createdVote, err := s.voteRepository.CreateVote(ctx ,id, vote, event, pollMeta.ExpiredAt)
 		if err != nil {
 			return types.CreateVoteDto{}, err
 		}
@@ -125,25 +144,51 @@ func (s *service) CreateVote(ctx context.Context,vote types.CreateVoteSchema) (t
 			return types.CreateVoteDto{}, err
 		}
 
-		// Publish vote created event
-		event := types.CreateVoteEvent{
-			EventId: uuid.NewString(),
-			PollId:  createdVote.PollId.String(),
-			OptionId: createdVote.OptionId.String(),
-			VotedAt: createdVote.CreatedAt.Format(time.RFC3339),
-		}
-
-		eventBytes, err := json.Marshal(event)
-		if err != nil {
-			return types.CreateVoteDto{}, err
-		}
-
-		err = s.voteProducer.Publish(ctx, TopicVoteCreated, createdVote.OptionId.String(), eventBytes)
-		if err != nil {
-			return types.CreateVoteDto{}, err
-		}
-
 		return ToVoteDto(createdVote), nil
+}
+
+// Background job
+func (s *service) ProcessOutboxEvents(ctx context.Context) { 
+     ticker := time.NewTicker(5 *time.Second)
+     defer ticker.Stop()
+
+	 for {
+		select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				outboxEvent, err := s.voteRepository.GetOutboxEvent(ctx)
+				if err != nil {
+					// Expected error
+					if errors.Is(err, shared.ErrOutboxEventNotFound) {
+						continue
+					}
+					s.logger.Error("failed to get outbox event", slog.Any("error", err))
+					continue
+				}
+
+				// Serialize event
+				eventBytes, err := json.Marshal(outboxEvent)
+				if err != nil {
+					s.logger.Error("failed to marshal outbox event", slog.Any("error", err))
+					continue
+				}
+				// Process event
+				err = s.voteProducer.Publish(ctx,TopicVoteCreated, outboxEvent.OptionId, eventBytes)
+				// Don't update when publish failed for later retry
+				if err != nil {
+					s.logger.Error("failed to publish outbox event", slog.Any("error", err))
+					continue
+				}
+
+				// Update outbox event
+				err = s.voteRepository.UpdateOutboxEvent(ctx, outboxEvent.EventId)
+				if err != nil {
+					s.logger.Error("failed to update outbox event", slog.Any("error", err))
+					continue
+				}
+		}
+	 }
 }
 
 func ToVoteDto(vote types.CreateVoteResponse) types.CreateVoteDto {
