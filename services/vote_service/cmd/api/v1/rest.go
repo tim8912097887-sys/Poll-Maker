@@ -67,6 +67,7 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 		VoteCache: voteCache,
 		GrpcClient: voteGrpcClient,
 		VoteProducer: voteProducer,
+		Logger: a.Config.Logger,
 	}
 	voteService := vote.NewService(&voteServiceConfig)
 	voteHandlerConfig := vote.HandlerConfig{
@@ -84,6 +85,10 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 	subscriber := cache.NewSubscriber(subscriberConfig)
 	go func() {
 		subscriber.Start(ctx)
+	}()
+
+	go func() {
+		voteService.ProcessOutboxEvents(ctx)
 	}()
 	return adaptor.FiberApp(app)
 }
