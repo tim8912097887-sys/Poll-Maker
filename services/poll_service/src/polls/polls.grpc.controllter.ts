@@ -1,3 +1,4 @@
+import z from 'zod';
 import { Controller } from '@nestjs/common';
 import {
   PollServiceController,
@@ -13,6 +14,8 @@ import { PollExpired } from './errors/poll-expired';
 import { PollNotStarted } from './errors/poll-not-started';
 import { toTimestamp } from './utils/time-convertion';
 import { logger } from 'src/infrastructure/configs/logging/logger.config';
+import { ValidatePollRequestSchema } from './schemas/validate-poll-request';
+import { PollValidateFail } from './errors/poll-validate-fail';
 
 @Controller()
 @PollServiceControllerMethods()
@@ -24,6 +27,12 @@ export class PollGrpcController implements PollServiceController {
     request: ValidatePollRequest,
   ): Promise<ValidatePollResponse> {
     try {
+      // Validation
+      const parsedRequest = ValidatePollRequestSchema.safeParse(request);
+      if (!parsedRequest.success) {
+        const errorMessage = z.flattenError(parsedRequest.error);
+        throw new PollValidateFail(JSON.stringify(errorMessage));
+      }
       const poll = await this.pollsService.validatePollForVoting(request);
       return {
         isValid: true,
@@ -59,6 +68,16 @@ export class PollGrpcController implements PollServiceController {
         return {
           isValid: false,
           reason: ValidatePollResponse_ValidityReason.POLL_NOT_STARTED,
+          expiredAt: toTimestamp(new Date()),
+        };
+      } else if (error instanceof PollValidateFail) {
+        logger.error({
+          event: 'poll_validate_fail',
+          pollId: request.pollId,
+        });
+        return {
+          isValid: false,
+          reason: ValidatePollResponse_ValidityReason.POLL_VALIDATION_ERROR,
           expiredAt: toTimestamp(new Date()),
         };
       } else {
