@@ -23,8 +23,11 @@ import {
   KafkaContext,
   Payload,
 } from '@nestjs/microservices';
-import type { VoteCreatedMessage } from './types/polls-event';
 import { logger } from 'src/infrastructure/configs/logging/logger.config';
+import {
+  type VoteCreatedMessage,
+  VoteCreatedMessageSchema,
+} from './schemas/vote-created-message.schema';
 
 @Controller('/api/v1/polls')
 export class PollsController {
@@ -66,17 +69,22 @@ export class PollsController {
 
   @EventPattern('vote.created')
   async handleVoteCreated(
-    @Payload() message: VoteCreatedMessage,
+    @Payload()
+    message: VoteCreatedMessage,
     @Ctx() context: KafkaContext,
   ) {
     try {
+      const parsedMessage = VoteCreatedMessageSchema.safeParse(message);
+      if (!parsedMessage.success) {
+        throw new Error(parsedMessage.error.issues[0].message);
+      }
       await this.pollsService.updateVoteCount(
         message.eventId,
         message.pollId,
         message.optionId,
       );
     } catch (error) {
-      logger.error(error);
+      logger.error({ event: 'vote_created_error', error });
     }
   }
 }

@@ -15,8 +15,8 @@ import {
   ValidatePollResponse,
   ValidatePollResponse_ValidityReason,
 } from 'src/proto/proto/poll';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { seedPolls } from './helpers/seeding/polls';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { seedPoll } from './helpers/seeding/polls';
 import { RedisClientType } from 'redis';
 import { CacheAsyncProvider } from 'src/infrastructure/cache/cache.provider';
 import { firstValueFrom, Observable } from 'rxjs';
@@ -45,7 +45,7 @@ describe('Polls gRPC API', () => {
         AppModule,
         ClientsModule.register([
           {
-            name: 'POLL_MICRO_TEST_CLIENT',
+            name: 'POLL_GRPC_TEST_CLIENT',
             transport: Transport.GRPC,
             options: grpcOptions,
           },
@@ -65,14 +65,14 @@ describe('Polls gRPC API', () => {
     await app.init();
 
     // Obtain gRPC client instance
-    client = moduleRef.get<ClientGrpc>('POLL_MICRO_TEST_CLIENT');
+    client = moduleRef.get<ClientGrpc>('POLL_GRPC_TEST_CLIENT');
     pollService = client.getService<PollService>('PollService');
     // Obtain DB and cache instance
     db = app.get(DbAsyncProvider);
     cache = app.get(CacheAsyncProvider);
   });
 
-  beforeEach(async () => {
+  afterEach(async () => {
     await db.execute(sql`
       TRUNCATE TABLE
           polls,
@@ -88,76 +88,100 @@ describe('Polls gRPC API', () => {
   });
 
   describe('validatePollForVoting', () => {
-    it('should return true if poll is existing and valid', async () => {
-      // Arrange
-      const poll = await seedPolls(db, cache);
-      const id = poll.find(
-        (p) =>
-          !p.poll.isPrivate &&
-          p.poll.startedAt < new Date() &&
-          p.poll.expiredAt > new Date(),
-      )?.poll.id as string;
+    describe('Validation', () => {
+      it('should return false if request payload is invalid', async () => {
+        // Arrange
+        const request = { pollId: 'not-a-uuid' };
 
-      // Act
-      const respond = await firstValueFrom(
-        pollService.validatePollForVoting({ pollId: id }),
-      );
+        // Act
+        const respond = await firstValueFrom(
+          pollService.validatePollForVoting(request),
+        );
 
-      // Assert
-      expect(respond.isValid).toBe(true);
-      expect(respond.reason).toBe(ValidatePollResponse_ValidityReason.OK);
+        // Assert
+        expect(respond.isValid).toBe(false);
+        expect(respond.reason).toBe(
+          ValidatePollResponse_ValidityReason.POLL_VALIDATION_ERROR,
+        );
+      });
     });
 
-    it('should return false if poll is not existing', async () => {
-      // Arrange
-      const id = '00000000-0000-0000-0000-000000000000';
+    describe('Success', () => {
+      it('should return true if poll is existing and valid', async () => {
+        // Arrange
+        const now = new Date();
+        const { pollId } = await seedPoll(db, {
+          startedAt: new Date(now.getTime() - 60 * 60 * 1000),
+          expiredAt: new Date(now.getTime() + 60 * 60 * 1000),
+        });
 
-      // Act
-      const respond = await firstValueFrom(
-        pollService.validatePollForVoting({ pollId: id }),
-      );
+        // Act
+        const respond = await firstValueFrom(
+          pollService.validatePollForVoting({ pollId }),
+        );
 
-      // Assert
-      expect(respond.isValid).toBe(false);
-      expect(respond.reason).toBe(
-        ValidatePollResponse_ValidityReason.POLL_NOT_FOUND,
-      );
+        // Assert
+        expect(respond.isValid).toBe(true);
+        expect(respond.reason).toBe(ValidatePollResponse_ValidityReason.OK);
+      });
     });
 
-    it('should return false if poll is expired', async () => {
-      // Arrange
-      const poll = await seedPolls(db, cache);
-      const id = poll.find((p) => p.poll.expiredAt < new Date())?.poll
-        .id as string;
+    describe('Business Logic Errors', () => {
+      it('should return false if poll is not existing', async () => {
+        // Arrange
+        const id = '00000000-0000-0000-0000-000000000000';
 
-      // Act
-      const respond = await firstValueFrom(
-        pollService.validatePollForVoting({ pollId: id }),
-      );
+        // Act
+        const respond = await firstValueFrom(
+          pollService.validatePollForVoting({ pollId: id }),
+        );
 
-      // Assert
-      expect(respond.isValid).toBe(false);
-      expect(respond.reason).toBe(
-        ValidatePollResponse_ValidityReason.POLL_EXPIRED,
-      );
-    });
+        // Assert
+        expect(respond.isValid).toBe(false);
+        expect(respond.reason).toBe(
+          ValidatePollResponse_ValidityReason.POLL_NOT_FOUND,
+        );
+      });
 
-    it('should return false if poll is not started yet', async () => {
-      // Arrange
-      const poll = await seedPolls(db, cache);
-      const id = poll.find((p) => p.poll.startedAt > new Date())?.poll
-        .id as string;
+      it('should return false if poll is expired', async () => {
+        // Arrange
+        const now = new Date();
+        const { pollId } = await seedPoll(db, {
+          startedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+          expiredAt: new Date(now.getTime() - 60 * 60 * 1000),
+        });
 
-      // Act
-      const respond = await firstValueFrom(
-        pollService.validatePollForVoting({ pollId: id }),
-      );
+        // Act
+        const respond = await firstValueFrom(
+          pollService.validatePollForVoting({ pollId }),
+        );
 
-      // Assert
-      expect(respond.isValid).toBe(false);
-      expect(respond.reason).toBe(
-        ValidatePollResponse_ValidityReason.POLL_NOT_STARTED,
-      );
+        // Assert
+        expect(respond.isValid).toBe(false);
+        expect(respond.reason).toBe(
+          ValidatePollResponse_ValidityReason.POLL_EXPIRED,
+        );
+      });
+
+      it('should return false if poll is not started yet', async () => {
+        // Arrange
+        const now = new Date();
+        const { pollId } = await seedPoll(db, {
+          startedAt: new Date(now.getTime() + 60 * 60 * 1000),
+          expiredAt: new Date(now.getTime() + 2 * 60 * 60 * 1000),
+        });
+
+        // Act
+        const respond = await firstValueFrom(
+          pollService.validatePollForVoting({ pollId }),
+        );
+
+        // Assert
+        expect(respond.isValid).toBe(false);
+        expect(respond.reason).toBe(
+          ValidatePollResponse_ValidityReason.POLL_NOT_STARTED,
+        );
+      });
     });
   });
 });

@@ -5,6 +5,7 @@
 // source: proto/poll.proto
 
 /* eslint-disable */
+import type { Metadata } from "@grpc/grpc-js";
 import { GrpcMethod, GrpcStreamMethod } from "@nestjs/microservices";
 import { Observable } from "rxjs";
 import { Timestamp } from "../google/protobuf/timestamp";
@@ -28,18 +29,20 @@ export enum ValidatePollResponse_ValidityReason {
   POLL_EXPIRED = 3,
   POLL_NOT_STARTED = 4,
   POLL_CLOSED = 5,
+  POLL_VALIDATION_ERROR = 6,
   UNRECOGNIZED = -1,
 }
 
 export const POLL_V1_PACKAGE_NAME = "poll.v1";
 
 export interface PollServiceClient {
-  validatePollForVoting(request: ValidatePollRequest): Observable<ValidatePollResponse>;
+  validatePollForVoting(request: ValidatePollRequest, metadata?: Metadata): Observable<ValidatePollResponse>;
 }
 
 export interface PollServiceController {
   validatePollForVoting(
     request: ValidatePollRequest,
+    metadata?: Metadata,
   ): Promise<ValidatePollResponse> | Observable<ValidatePollResponse> | ValidatePollResponse;
 }
 
