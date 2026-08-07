@@ -23,5 +23,6 @@ message ValidatePollResponse {
         POLL_EXPIRED = 3;
         POLL_NOT_STARTED = 4;
         POLL_CLOSED = 5;
+        POLL_VALIDATION_ERROR = 6;
     }
 }

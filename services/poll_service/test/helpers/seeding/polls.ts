@@ -5,6 +5,47 @@ import { pollOptions } from 'src/infrastructure/persistence/schemas/poll_options
 import { polls } from 'src/infrastructure/persistence/schemas/polls';
 import { createPollKey, createPollOptionsKey } from 'src/polls/utils/cache-key';
 
+export async function seedPoll(
+  db: ReturnType<typeof drizzle>,
+  {
+    startedAt,
+    expiredAt,
+    title = 'Business Logic Test Poll',
+    isPrivate = false,
+    creatorSession = `test-${randomUUID()}`,
+    optionText = 'Option 1',
+  }: {
+    startedAt: Date;
+    expiredAt: Date;
+    title?: string;
+    isPrivate?: boolean;
+    creatorSession?: string;
+    optionText?: string;
+  },
+) {
+  const pollId = randomUUID();
+  const optionId = randomUUID();
+
+  await db.transaction(async (tx) => {
+    await tx.insert(polls).values({
+      id: pollId,
+      title,
+      isPrivate,
+      creatorSession,
+      startedAt,
+      expiredAt,
+    });
+
+    await tx.insert(pollOptions).values({
+      id: optionId,
+      pollId,
+      optionText,
+    });
+  });
+
+  return { pollId, optionId };
+}
+
 export async function seedPolls(
   db: ReturnType<typeof drizzle>,
   cache: RedisClientType,

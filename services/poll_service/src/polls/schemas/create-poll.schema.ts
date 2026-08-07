@@ -29,6 +29,12 @@ export const CreatePollSchema = PollSchema.omit({
     (data) => data.options.length >= 2 && data.options.length <= 10,
     'options must be between 2 and 10',
   )
+  // Check if StartedAt and ExpiredAt are valid ISO datetimes
+  .refine(({ startedAt, expiredAt }) => {
+    const isValid =
+      !isNaN(Date.parse(startedAt)) && !isNaN(Date.parse(expiredAt));
+    return isValid;
+  }, 'startedAt and expiredAt must be valid ISO datetimes')
   // StartedAt must be in the future
   .refine(
     ({ startedAt }) => new Date(startedAt) > new Date(Date.now()),

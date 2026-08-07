@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { AppModule } from 'src/app.module';
 import { Test } from '@nestjs/testing';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { DbAsyncProvider } from 'src/infrastructure/persistence/db.provider';
@@ -29,7 +29,7 @@ describe('Polls API', () => {
     cache = app.get(CacheAsyncProvider);
   });
 
-  beforeEach(async () => {
+  afterEach(async () => {
     await db.execute(sql`
     TRUNCATE TABLE
         polls,
