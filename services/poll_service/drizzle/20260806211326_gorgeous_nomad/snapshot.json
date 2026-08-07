@@ -1,11 +1,17 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "d2a3a61f-9653-4362-9ef1-4ed60caeb8e7",
+  "id": "24793e4d-0f6f-40eb-9475-c3f1268bc6fa",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
+    {
+      "isRlsEnabled": false,
+      "name": "inbox_events",
+      "entityType": "tables",
+      "schema": "public"
+    },
     {
       "isRlsEnabled": false,
       "name": "poll_options",
@@ -17,6 +23,32 @@
       "name": "polls",
       "entityType": "tables",
       "schema": "public"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "event_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "inbox_events"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "processed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "inbox_events"
     },
     {
       "type": "uuid",
@@ -190,6 +222,16 @@
       "entityType": "fks",
       "schema": "public",
       "table": "poll_options"
+    },
+    {
+      "columns": [
+        "event_id"
+      ],
+      "nameExplicit": false,
+      "name": "inbox_events_pkey",
+      "schema": "public",
+      "table": "inbox_events",
+      "entityType": "pks"
     },
     {
       "columns": [
