@@ -73,6 +73,8 @@ describe('Polls Consumer API', () => {
 
     // Start all microservices attached to the app
     await app.startAllMicroservices();
+    // Wait for the consumer to be ready
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     await app.init();
 
     // Obtain kafka client instance
