@@ -70,7 +70,11 @@ export class PollsController {
     @Ctx() context: KafkaContext,
   ) {
     try {
-      await this.pollsService.updateVoteCount(message.pollId, message.optionId);
+      await this.pollsService.updateVoteCount(
+        message.eventId,
+        message.pollId,
+        message.optionId,
+      );
     } catch (error) {
       logger.error(error);
     }
