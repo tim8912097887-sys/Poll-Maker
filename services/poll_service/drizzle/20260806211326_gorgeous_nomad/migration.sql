@@ -1,3 +1,8 @@
+CREATE TABLE "inbox_events" (
+	"event_id" uuid PRIMARY KEY,
+	"processed_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "poll_options" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	"poll_id" uuid NOT NULL,

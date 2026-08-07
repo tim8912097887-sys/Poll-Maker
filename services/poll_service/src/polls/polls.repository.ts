@@ -5,6 +5,7 @@ import { DbAsyncProvider } from 'src/infrastructure/persistence/db.provider';
 import { polls } from 'src/infrastructure/persistence/schemas/polls';
 import { CreatePollType } from './schemas/create-poll.schema';
 import { pollOptions } from 'src/infrastructure/persistence/schemas/poll_options';
+import { inboxEvents } from 'src/infrastructure/persistence/schemas/inbox_events';
 
 export class PollsRepository {
   constructor(
@@ -83,11 +84,18 @@ export class PollsRepository {
     return this.db.delete(polls).where(eq(polls.id, id));
   }
 
-  async updatePollOption(pollId: string, optionId: string) {
-    // Prevent race condition by directly updating the row
-    return this.db
-      .update(pollOptions)
-      .set({ voteCounts: sql<number>`vote_counts + 1` })
-      .where(and(eq(pollOptions.id, optionId), eq(pollOptions.pollId, pollId)));
+  async updatePollOption(eventId: string, pollId: string, optionId: string) {
+    await this.db.transaction(async (tx) => {
+      // Prevent race condition by directly updating the row
+      await tx
+        .update(pollOptions)
+        .set({ voteCounts: sql<number>`vote_counts + 1` })
+        .where(
+          and(eq(pollOptions.id, optionId), eq(pollOptions.pollId, pollId)),
+        );
+
+      // Create inbox record
+      await tx.insert(inboxEvents).values({ eventId });
+    });
   }
 }
