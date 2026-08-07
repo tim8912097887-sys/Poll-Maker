@@ -99,6 +99,16 @@ jobs:
         run: |
           # Run redis-cli inside the container named 'redis'
           docker exec ${{ job.services.redis.id }} redis-cli -a "$REDIS_PASSWORD" ping
+      - name: Create Kafka topic
+        run: |
+          docker exec ${{ job.services.kafka-server.id }} \
+            /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server localhost:9092 \
+            --create \
+            --if-not-exists \
+            --topic vote.created \
+            --partitions 1 \
+            --replication-factor 1
       - name: Run Database Migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
