@@ -1,0 +1,103 @@
+###############################################################################
+# DEFAULT BEHAVIOR & LINE ENDING NORMALIZATION
+###############################################################################
+# Auto-detect text files and normalize line endings to LF in the repository.
+* text=auto eol=lf
+
+###############################################################################
+# GO (GOLANG) SPECIFIC RULES
+###############################################################################
+*.go            text eol=lf
+go.mod          text eol=lf
+go.sum          text eol=lf linguist-generated=true
+go.work         text eol=lf
+go.work.sum     text eol=lf linguist-generated=true
+
+###############################################################################
+# NODE.JS & WEB SPECIFIC RULES
+###############################################################################
+*.js            text eol=lf
+*.jsx           text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.mjs           text eol=lf
+*.cjs           text eol=lf
+*.json          text eol=lf
+*.jsonc         text eol=lf
+*.html          text eol=lf
+*.css           text eol=lf
+*.scss          text eol=lf
+*.vue           text eol=lf
+*.svelte        text eol=lf
+
+# Node Package Lockfiles (Collapses massive lockfile diffs in PRs)
+package-lock.json   text eol=lf linguist-generated=true
+yarn.lock           text eol=lf linguist-generated=true
+pnpm-lock.yaml      text eol=lf linguist-generated=true
+bun.lockb           binary
+
+###############################################################################
+# CONFIGURATION, MARKUP & SHELL SCRIPTS
+###############################################################################
+*.md            text eol=lf
+*.txt           text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.toml          text eol=lf
+*.ini           text eol=lf
+*.env*          text eol=lf
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+Makefile        text eol=lf
+.gitignore      text eol=lf
+.editorconfig   text eol=lf
+
+# Protocol Buffers / gRPC (Common in Go/Node microservices)
+*.proto         text eol=lf
+
+###############################################################################
+# WINDOWS-SPECIFIC SCRIPTS (ENFORCE CRLF)
+###############################################################################
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+###############################################################################
+# BINARIES & COMPILED ARTIFACTS
+###############################################################################
+# Go & Native Binaries
+*.exe           binary
+*.dll           binary
+*.so            binary
+*.dylib         binary
+*.a             binary
+*.o             binary
+*.test          binary
+
+# Compressed Archives & Media
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.webp          binary
+*.ico           binary
+*.pdf           binary
+*.zip           binary
+*.tar.gz        binary
+*.7z            binary
+
+# Fonts
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
+*.eot           binary
+
+###############################################################################
+# ARCHIVE EXTRACTION EXCLUSIONS (git archive)
+###############################################################################
+.gitignore      export-ignore
+.gitattributes  export-ignore
+.github/        export-ignore
+.vscode/        export-ignore
+.idea/          export-ignore
+tests/          export-ignore
