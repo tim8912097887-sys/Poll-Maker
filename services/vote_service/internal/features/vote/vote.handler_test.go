@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared"
-	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response"
+	httpresponse "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response/http_response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/validation"
 	pollv1 "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/proto"
@@ -136,14 +136,14 @@ func assertValidationError(t *testing.T, resp *http.Response, expectedField, exp
 	}
 }
 
-func assertErrorResponse(t *testing.T, resp *http.Response, expectedStatus int, expectedCode string) response.ErrorResponse {
+func assertErrorResponse(t *testing.T, resp *http.Response, expectedStatus int, expectedCode string) httpresponse.ErrorResponse {
 	t.Helper()
 
 	if resp.StatusCode != expectedStatus {
 		t.Fatalf("expected status code %d, got %d", expectedStatus, resp.StatusCode)
 	}
 
-	errorResponse := decodeResponse[response.ErrorResponse](t, resp)
+	errorResponse := decodeResponse[httpresponse.ErrorResponse](t, resp)
 	if errorResponse.Error.Code != expectedCode {
 		t.Fatalf("expected error code %q, got %q", expectedCode, errorResponse.Error.Code)
 	}
@@ -248,7 +248,7 @@ func TestCreateVoteSuccess(t *testing.T) {
 		t.Fatalf("expected status code %d, got %d", http.StatusOK, resp.StatusCode)
 	}
 
-	successResponse := decodeResponse[response.SuccessResponse](t, resp)
+	successResponse := decodeResponse[httpresponse.SuccessResponse](t, resp)
 	if successResponse.State != "success" {
 		t.Fatalf("expected state %q, got %q", "success", successResponse.State)
 	}
@@ -366,7 +366,7 @@ func TestCreateVoteGrpcClientResponses(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			assertResponse: func(t *testing.T, resp *http.Response) {
 				t.Helper()
-				successResponse := decodeResponse[response.SuccessResponse](t, resp)
+				successResponse := decodeResponse[httpresponse.SuccessResponse](t, resp)
 				if successResponse.State != "success" {
 					t.Fatalf("expected state %q, got %q", "success", successResponse.State)
 				}

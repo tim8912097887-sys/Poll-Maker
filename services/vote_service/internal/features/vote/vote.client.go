@@ -3,6 +3,7 @@ package vote
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gofiber/contrib/v3/websocket"
@@ -15,6 +16,8 @@ type Client struct {
 	conn   *websocket.Conn
 	logger *slog.Logger
 	send chan []byte
+	done     chan struct{}
+	closeOnce sync.Once
 }
 
 func NewClient(
@@ -28,16 +31,17 @@ func NewClient(
 		conn:   conn,
 		logger: logger,
 		send:   make(chan []byte, 32),
+		done:     make(chan struct{}),
 	}
 }
 
 func (c *Client) Run(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	go c.writeLoop(ctx)
 
 	c.ReadLoop(ctx)
+
+	c.Close()
 }
 
 func (c *Client) ReadLoop(ctx context.Context) {
@@ -47,8 +51,15 @@ func (c *Client) ReadLoop(ctx context.Context) {
 
     // Configure connection deadlines and heartbeats
     c.conn.SetReadLimit(512)
-    _ = c.conn.SetReadDeadline(time.Now().Add(PongWait))
-    
+    err := c.conn.SetReadDeadline(time.Now().Add(PongWait))
+    if err != nil {
+		c.logger.Debug(
+			"failed to set websocket read deadline",
+			slog.Any("error", err),
+		)
+		return
+	}
+
     // Reset read deadline every time a Pong is received from the client
     c.conn.SetPongHandler(func(string) error {
         _ = c.conn.SetReadDeadline(time.Now().Add(PongWait))
@@ -59,8 +70,23 @@ func (c *Client) ReadLoop(ctx context.Context) {
         // Discard any incoming bytes while letting the underlying library process Ping/Pong/Close
         _, _, err := c.conn.ReadMessage()
         if err != nil {
-            c.logger.Debug("websocket read error", slog.Any("error", err))
-			break
+            if websocket.IsCloseError(
+				err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway,
+			) {
+				c.logger.Debug(
+					"websocket client disconnected",
+					slog.String("client_id", c.clientID),
+				)
+			} else {
+				c.logger.Debug(
+					"websocket read failed",
+					slog.String("client_id", c.clientID),
+					slog.Any("error", err),
+				)
+			}
+			return
         }
     }
 }
@@ -72,21 +98,50 @@ func (c *Client) writeLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			_ = c.conn.WriteMessage(
+			if err := c.conn.WriteMessage(
 				websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
-			)
+			) ; err != nil {
+				c.logger.Debug(
+					"websocket write failed",
+					slog.Any("error", err),
+				)
+			}
+			return
+
+		case <-c.done:
+			if err := c.conn.WriteMessage(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			); err != nil {
+				c.logger.Debug(
+					"websocket write failed",
+					slog.Any("error", err),
+				)
+			}
 			return
 
 		case message, ok := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(WriteWait))
-
+			if err := c.conn.SetWriteDeadline(
+				time.Now().Add(WriteWait),
+			); err != nil {
+				c.logger.Debug(
+					"failed to set websocket write deadline",
+					slog.Any("error", err),
+				)
+				return
+			}
 			if !ok {
 				// The send channel was closed by the manager/hub
-				_ = c.conn.WriteMessage(
+				if err := c.conn.WriteMessage(
 					websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
-				)
+				) ; err != nil {
+					c.logger.Debug(
+						"websocket write failed",
+						slog.Any("error", err),
+					)
+				}
 				return
 			}
 
@@ -100,11 +155,22 @@ func (c *Client) writeLoop(ctx context.Context) {
 			}
 
 		case <-ticker.C:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(WriteWait))
+			if err := c.conn.SetWriteDeadline(
+				time.Now().Add(WriteWait),
+			); err != nil {
+				return
+			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				c.logger.Debug("websocket ping failed", slog.Any("error", err))
 				return
 			}
 		}
 	}
+}
+
+func (c *Client) Close() {
+	c.closeOnce.Do(func() {
+		close(c.done)
+		_ = c.conn.Close()
+	})
 }

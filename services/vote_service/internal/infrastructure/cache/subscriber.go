@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
+	websocketresponse "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response/websocket_response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 )
 
@@ -81,12 +82,8 @@ func (s *Subscriber) Start(ctx context.Context) {
 					continue
 				}
 				// Broadcast the updated vote count to all clients in the room
-				message, err := json.Marshal(map[string]any{
-					"type": "vote_count_updated",
-					"poll_id": event.PollID,
-					"option_id": event.OptionID,
-					"vote_count": event.VoteCount,
-				})
+				updateVoteCountMessage := websocketresponse.NewUpdateVoteCountMessage(event.PollID, event.OptionID, event.VoteCount)
+				message, err := json.Marshal(updateVoteCountMessage)
 				if err != nil {
 					s.logger.Error("Failed to marshal vote count updated message", slog.Any("error", err))
 					continue

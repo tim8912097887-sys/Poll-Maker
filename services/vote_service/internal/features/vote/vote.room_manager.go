@@ -2,7 +2,10 @@ package vote
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
+
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared"
 )
 
 type RoomManager struct {
@@ -13,14 +16,14 @@ type RoomManager struct {
 
 func NewRoomManager() *RoomManager {
 	return &RoomManager{
-		rooms: make(map[string]map[*Client]struct{}),
+		rooms:  make(map[string]map[*Client]struct{}),
 	}
 }
 
 func (m *RoomManager) Join(
 	pollID string,
 	client *Client,
-) {
+) error {
 	m.mu.Lock()
 
 	room, ok := m.rooms[pollID]
@@ -31,10 +34,21 @@ func (m *RoomManager) Join(
 
 	room[client] = struct{}{}
 
-	message, _ := json.Marshal(map[string]any{"type": "join", "client_id": client.clientID})
+	if len(room) >= MaxClientsPerRoom {
+		return shared.ErrRoomFull
+	}
+
+	message, err := json.Marshal(map[string]any{"type": "join", "client_id": client.clientID})
+	if err != nil {
+		client.logger.Error("Failed to marshal join message", slog.Any("error", err))
+		m.mu.Unlock()
+		return err
+	}
 	// Unlock before broadcasting to avoid potential deadlocks if Broadcast tries to acquire the lock again
 	m.mu.Unlock()
 	m.Broadcast(pollID, []byte(message))
+
+	return nil
 }
 
 func (m *RoomManager) Leave(
@@ -45,6 +59,7 @@ func (m *RoomManager) Leave(
 
 	room, ok := m.rooms[pollID]
 	if !ok {
+		m.mu.Unlock()
 		return
 	}
 
@@ -54,8 +69,13 @@ func (m *RoomManager) Leave(
 		delete(m.rooms, pollID)
 	}
 
-	message, _ := json.Marshal(map[string]any{"type": "leave", "client_id": client.clientID})
-	
+	message, err := json.Marshal(map[string]any{"type": "leave", "client_id": client.clientID})
+	if err != nil {
+		client.logger.Error("Failed to marshal leave message", slog.Any("error", err))
+		m.mu.Unlock()
+		return
+	}
+
 	// Unlock before broadcasting to avoid potential deadlocks if Broadcast tries to acquire the lock again
 	m.mu.Unlock()
 	m.Broadcast(pollID, []byte(message))
@@ -72,6 +92,17 @@ func (m *RoomManager) Broadcast(pollId string, message []byte) {
 	}
 
 	for client := range room {
-		client.send <- message
+		select {
+		case client.send <- message:
+		// Don't block if the client's send channel is full; log a warning and close the client
+		default:
+			client.logger.Warn(
+				"client send buffer full",
+				slog.String("client_id", client.clientID),
+				slog.String("poll_id", pollId),
+			)
+
+			go client.Close()
+		}
 	}
 }
