@@ -118,40 +118,6 @@ services:
       kafka-server:
         condition: service_healthy
     restart: always
-  poll-service2:
-    build:
-      context: ./services/poll_service
-      dockerfile: Dockerfile
-    ports:
-      - "3001:3000"
-      - "50052:50051"
-    env_file:
-      - ./services/poll_service/.env
-    depends_on:
-      polls-maker-db:
-        condition: service_healthy
-      poll-service-migrations:
-        condition: service_completed_successfully
-      kafka-server:
-        condition: service_healthy
-    restart: always
-  poll-service3:
-    build:
-      context: ./services/poll_service
-      dockerfile: Dockerfile
-    ports:
-      - "3002:3000"
-      - "50053:50051"
-    env_file:
-      - ./services/poll_service/.env
-    depends_on:
-      polls-maker-db:
-        condition: service_healthy
-      poll-service-migrations:
-        condition: service_completed_successfully
-      kafka-server:
-        condition: service_healthy
-    restart: always
   vote-service-migrations:
     build:
       context: ./services/vote_service

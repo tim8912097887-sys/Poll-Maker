@@ -2,17 +2,17 @@ package v1
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/cmd/websocket_server"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/infrastructure/cache"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/configs"
@@ -36,7 +36,7 @@ type Api struct {
 	Config ApiConfig
 }
 
-func (a *Api) Mount(ctx context.Context) http.Handler {
+func (a *Api) Mount(ctx context.Context) *fiber.App {
 	app := fiber.New(fiber.Config{
         StructValidator: &validation.StructValidator{
 			Validating: validator.New(),
@@ -77,12 +77,42 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 	voteHandler := vote.NewHandler(&voteHandlerConfig)
 	voteHandler.RegisterRoutes(voteRouter)
 
+	// Websocket
+	roomManager := vote.NewRoomManager()
 	subscriberConfig := cache.SubscriberConfig{
 			CacheClient: a.Config.CacheClient,
 			VoteCache: voteCache,
 			Logger: a.Config.Logger,
+			RoomManager: roomManager,
 	}
 	subscriber := cache.NewSubscriber(subscriberConfig)
+
+	websocketHandlerConfig := websocket_server.WebSocketHandlerConfig{
+		Logger: a.Config.Logger,
+		VoteCache: voteCache,
+		Rooms: roomManager,
+	}
+
+	webSocketHandler := websocket_server.NewWebSocketHandler(&websocketHandlerConfig)
+
+    v1Router.Use("/ws", func(c fiber.Ctx) error {
+		if websocket.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+
+	v1Router.Get("/ws/:pollID", websocket.New(func(c *websocket.Conn) {
+		pollID := c.Params("pollID")
+		a.Config.Logger.Info(
+			"websocket connection attempt",
+			slog.String("poll_id", pollID),
+		)
+		
+		// Call your WebSocket logic here using c (websocket.Conn)
+		webSocketHandler.HandleConnection(ctx, c, pollID)
+	}))
 	go func() {
 		subscriber.Start(ctx)
 	}()
@@ -90,32 +120,25 @@ func (a *Api) Mount(ctx context.Context) http.Handler {
 	go func() {
 		voteService.ProcessOutboxEvents(ctx)
 	}()
-	return adaptor.FiberApp(app)
+
+	return app
 }
 
-func (a *Api) Run(ctx context.Context, h http.Handler, shutdownTimeout time.Duration) error {
-	server := &http.Server{
-		Addr:    a.Config.EnvConfigs.Api.Addr,
-		Handler: h,
-		ReadTimeout:       5 * time.Second,
-        ReadHeaderTimeout: 2 * time.Second,
-        WriteTimeout:      10 * time.Second,
-        IdleTimeout:       120 * time.Second,
-	}
+func (a *Api) Run(ctx context.Context, app *fiber.App, shutdownTimeout time.Duration) error {
 
 	// Channel to notify when the server is initialized failure
 	serverErrorCh := make(chan error, 1)
 	// Start the server with goroutine
 	go func() {
 		a.Config.Logger.Info("starting server",slog.String("address", a.Config.EnvConfigs.Api.Addr))
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := app.Listen(a.Config.EnvConfigs.Api.Addr); err != nil && err != http.ErrServerClosed {
 			a.Config.Logger.Error("failed to start server",slog.Any("error", err))
 			serverErrorCh <- err
 		}
 	}()
 
 	// Register the shutdown handler
-	a.Config.ShutdownManager.Register(a.Shutdown(server, shutdownTimeout))
+	a.Config.ShutdownManager.Register(a.Shutdown(app, shutdownTimeout))
 
 	select {
 		case <-ctx.Done():
@@ -131,16 +154,12 @@ func (a *Api) Run(ctx context.Context, h http.Handler, shutdownTimeout time.Dura
 
 }
 
-func (a *Api) Shutdown(server *http.Server, shutdownTimeout time.Duration) func(context.Context) error {
+func (a *Api) Shutdown(server *fiber.App, shutdownTimeout time.Duration) func(context.Context) error {
 	
 	return func(ctx context.Context) error {
 
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(); err != nil {
 			a.Config.Logger.Error("failed to shut down the server",slog.Any("error", err))
-			if closeErr := server.Close(); closeErr != nil {
-				a.Config.Logger.Error("failed to close the server",slog.Any("error", err))
-				return errors.Join(err,closeErr)
-			}
 			return err
 		}
 
