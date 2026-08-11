@@ -11,3 +11,9 @@ type PollMeta struct {
 type PollDeletedEvent struct {
     PollID string `json:"pollId"`
 }
+
+type VoteCountUpdatedEvent struct {
+	PollID string `json:"pollId"`
+	OptionID string `json:"optionId"`
+	VoteCount int `json:"voteCount"`
+}

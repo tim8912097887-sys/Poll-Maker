@@ -2,7 +2,6 @@ package vote
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -26,7 +25,7 @@ func NewCache(config CacheConfig) *cache {
 
 func (c *cache) HasVoted(ctx context.Context, pollID, sessionID string) (bool, error) {
 	
-	key := fmt.Sprintf("poll:%s:voted", pollID)
+	key := VoteCacheKey(pollID)
 
 	voted, err := c.cacheClient.SIsMember(ctx, key, sessionID).Result()
 	if err != nil {
@@ -43,7 +42,7 @@ func (c *cache) MarkVoted(
     expiredAt time.Time,
 ) error {
 
-    key := fmt.Sprintf("poll:%s:voted", pollID)
+    key := VoteCacheKey(pollID)
 
     pipe := c.cacheClient.TxPipeline()
 
@@ -59,7 +58,7 @@ func (c *cache) MarkVoted(
 }
 
 func (c *cache) GetPollMeta(ctx context.Context, pollID string) (*types.PollMeta, error) {
-    key := fmt.Sprintf("poll:%s:meta", pollID)
+    key := PollCacheKey(pollID)
 
     res := c.cacheClient.HGetAll(ctx, key)
     if err := res.Err(); err != nil {
@@ -95,7 +94,7 @@ func (c *cache) GetPollMeta(ctx context.Context, pollID string) (*types.PollMeta
 }
 func (c *cache) IsValidOption(ctx context.Context, pollID, optionID string) (bool, error) {
 	
-	key := fmt.Sprintf("poll:%s:options", pollID)
+	key := PollOptionsCacheKey(pollID)
 
 	valid, err := c.cacheClient.SIsMember(ctx, key, optionID).Result()
 	if err != nil {
@@ -105,7 +104,7 @@ func (c *cache) IsValidOption(ctx context.Context, pollID, optionID string) (boo
 }
 
 func (c *cache) DeleteVoteCache(ctx context.Context, pollID string) error {
-    key := fmt.Sprintf("poll:%s:voted", pollID)
+    key := VoteCacheKey(pollID)
     _, err := c.cacheClient.Del(ctx, key).Result()
     return err
 }

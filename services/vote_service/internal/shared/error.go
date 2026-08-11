@@ -11,4 +11,5 @@ var (
 	ErrPollNotStarted = errors.New("poll not started")
 	ErrTimeout = errors.New("timeout")
 	ErrOutboxEventNotFound = errors.New("outbox event not found")
+	ErrRoomFull = errors.New("room is full")
 )

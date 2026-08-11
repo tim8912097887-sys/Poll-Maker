@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/timeout"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/middlewares"
-	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response"
+	httpresponse "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response/http_response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 )
 
@@ -57,10 +57,10 @@ func (h *Handler) CreateVote(c fiber.Ctx) error {
                     "rule":  e.Tag(),
                 })
             }
-            c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("validation_error", "invalid request body", &out))
+            c.Status(fiber.StatusBadRequest).JSON(httpresponse.NewErrorResponse("validation_error", "invalid request body", &out))
             return nil
 		}
-		c.Status(fiber.StatusBadRequest).JSON(response.NewErrorResponse("invalid_request", "invalid request body",nil))
+		c.Status(fiber.StatusBadRequest).JSON(httpresponse.NewErrorResponse("invalid_request", "invalid request body",nil))
 		return nil
     }
 	createdVote, err := h.voteService.CreateVote(c.Context(),vote)
@@ -74,6 +74,6 @@ func (h *Handler) CreateVote(c fiber.Ctx) error {
 		"message": "Successfully created vote",
 		"vote":    createdVote,
 	}
-	c.Status(fiber.StatusOK).JSON(response.NewSuccessResponse(data))
+	c.Status(fiber.StatusOK).JSON(httpresponse.NewSuccessResponse(data))
 	return nil
 }

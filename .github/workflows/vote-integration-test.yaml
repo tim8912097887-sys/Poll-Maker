@@ -1,0 +1,73 @@
+name: CI-Vote-Service-Integration-Test
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feat/**
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+jobs:
+  vote-service-integration-test:
+    environment:
+      name: Vote Service
+    runs-on: ubuntu-latest
+    env:
+      VOTE_SERVICE_CACHE_URL: ${{ secrets.VOTE_SERVICE_CACHE_URL }}
+      VOTE_SERVICE_DB_URL: ${{ secrets.VOTE_SERVICE_DB_URL }}
+    defaults:
+      run:
+        working-directory: ./services/vote_service
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          POSTGRES_DB: polls_maker
+        options: >-
+          --health-cmd "pg_isready -U postgres -d polls_maker"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 10s
+      redis:
+        image: redis:8.0-alpine
+        env:
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 5s
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.4"
+      - name: Query Postgres inside Container
+        env:
+          PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+        run: |
+          # Execute psql inside the container named 'postgres'
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} psql -U postgres -d polls_maker -c "SELECT 1;"
+      - name: Ping Redis
+        env:
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          # Run redis-cli inside the container named 'redis'
+          docker exec ${{ job.services.redis.id }} redis-cli -a "$REDIS_PASSWORD" ping
+      - name: Migrate Database
+        run: go run ./cmd/migrate/main.go
+      - name: Test
+        run: go test -v ./...

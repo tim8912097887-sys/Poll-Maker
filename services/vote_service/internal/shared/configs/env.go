@@ -42,10 +42,10 @@ func InitConfigs() Configs {
 			Addr: getEnv(ENV_PREFIX+"ADDR", ":8080"),
 		},
 		Db: DatabaseConfig{
-			Url: getEnv(ENV_PREFIX+"DB_URL", "postgresql://postgres:password@polls-maker-db:5432/polls_maker?sslmode=disable"),
+			Url: getEnv(ENV_PREFIX+"DB_URL", "postgresql://postgres:password@localhost:5432/polls_maker?sslmode=disable"),
 		},
 		Cache: CacheConfig{
-			Url: getEnv(ENV_PREFIX+"CACHE_URL", "redis://polls-maker-redis:6379/0"),
+			Url: getEnv(ENV_PREFIX+"CACHE_URL", "redis://:password@localhost:6379/0"),
 		},
 		Grpc: GrpcConfig{
 			Addr: getEnv(ENV_PREFIX+"GRPC_ADDR", ":8081"),

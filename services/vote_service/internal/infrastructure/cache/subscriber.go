@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/features/vote"
+	websocketresponse "github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/response/websocket_response"
 	"github.com/tim8912097887-sys/Poll-Maker/services/vote_service/internal/shared/types"
 )
 
@@ -22,12 +24,14 @@ type Subscriber struct {
 	cacheClient *redis.Client
 	voteCache  VoteCache
 	logger    *slog.Logger
+	roomManager *vote.RoomManager
 }
 
 type SubscriberConfig struct {
 	CacheClient *redis.Client
 	VoteCache  VoteCache
 	Logger    *slog.Logger
+	RoomManager *vote.RoomManager
 }
 
 func NewSubscriber(config SubscriberConfig) *Subscriber {
@@ -35,11 +39,12 @@ func NewSubscriber(config SubscriberConfig) *Subscriber {
 		cacheClient: config.CacheClient,
 		voteCache:  config.VoteCache,
 		logger:    config.Logger,
+		roomManager: config.RoomManager,
 	}
 }
 
 func (s *Subscriber) Start(ctx context.Context) {
-	sub := s.cacheClient.Subscribe(ctx, DeleteCacheEvent)
+	sub := s.cacheClient.Subscribe(ctx, DeleteCacheEvent, VoteCountUpdatedEvent)
     defer sub.Close()
 
 	ch := sub.Channel()
@@ -55,17 +60,39 @@ func (s *Subscriber) Start(ctx context.Context) {
 				s.logger.Warn("Redis pub/sub channel closed")
 				return
 			}
-			var event types.PollDeletedEvent
-			err := json.Unmarshal([]byte(msg.Payload), &event)
-			if err != nil {
-				s.logger.Error("Failed to unmarshal poll deleted event", slog.Any("error", err))
-				continue
+
+			switch msg.Channel {
+			case DeleteCacheEvent:
+				var event types.PollDeletedEvent
+				err := json.Unmarshal([]byte(msg.Payload), &event)
+				if err != nil {
+					s.logger.Error("Failed to unmarshal poll deleted event", slog.Any("error", err))
+					continue
+				}
+				err = s.voteCache.DeleteVoteCache(ctx, event.PollID)
+				if err != nil {
+					s.logger.Error("Failed to delete vote cache", slog.Any("pollID", event.PollID), slog.Any("error", err))
+					continue
+				}
+			case VoteCountUpdatedEvent:
+				var event types.VoteCountUpdatedEvent
+				err := json.Unmarshal([]byte(msg.Payload), &event)
+				if err != nil {
+					s.logger.Error("Failed to unmarshal vote count updated event", slog.Any("error", err))
+					continue
+				}
+				// Broadcast the updated vote count to all clients in the room
+				updateVoteCountMessage := websocketresponse.NewUpdateVoteCountMessage(event.PollID, event.OptionID, event.VoteCount)
+				message, err := json.Marshal(updateVoteCountMessage)
+				if err != nil {
+					s.logger.Error("Failed to marshal vote count updated message", slog.Any("error", err))
+					continue
+				}
+				s.roomManager.Broadcast(event.PollID, []byte(message))
+			default:
+				s.logger.Warn("Received message from unknown channel", slog.String("channel", msg.Channel))
 			}
-			err = s.voteCache.DeleteVoteCache(ctx, event.PollID)
-			if err != nil {
-				s.logger.Error("Failed to delete vote cache", slog.Any("pollID", event.PollID), slog.Any("error", err))
-				continue
-			}
+
 		}
 	}
 }
