@@ -85,17 +85,22 @@ export class PollsRepository {
   }
 
   async updatePollOption(eventId: string, pollId: string, optionId: string) {
-    await this.db.transaction(async (tx) => {
+    const voteCounts = await this.db.transaction(async (tx) => {
       // Prevent race condition by directly updating the row
-      await tx
+      const [{ voteCounts }] = await tx
         .update(pollOptions)
         .set({ voteCounts: sql<number>`vote_counts + 1` })
         .where(
           and(eq(pollOptions.id, optionId), eq(pollOptions.pollId, pollId)),
-        );
+        )
+        .returning({ id: pollOptions.id, voteCounts: pollOptions.voteCounts });
 
       // Create inbox record
       await tx.insert(inboxEvents).values({ eventId });
+
+      return voteCounts;
     });
+
+    return voteCounts;
   }
 }

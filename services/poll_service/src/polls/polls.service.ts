@@ -113,7 +113,12 @@ export class PollsService {
     if (!poll.options.includes(optionId)) {
       throw new PollOptionNotFound(pollId, optionId);
     }
-    await this.pollsRepository.updatePollOption(eventId, pollId, optionId);
+    const voteCount = await this.pollsRepository.updatePollOption(
+      eventId,
+      pollId,
+      optionId,
+    );
+    await this.pollsCache.publishVoteCountUpdate(pollId, optionId, voteCount);
   }
 
   private async checkPollStatus(pollId: string) {
