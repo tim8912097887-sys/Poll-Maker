@@ -3,7 +3,10 @@ import type { RedisClientType } from 'redis';
 import { CacheAsyncProvider } from 'src/infrastructure/cache/cache.provider';
 import { PollMeta } from './types/polls-cache-data';
 import { createPollKey, createPollOptionsKey } from './utils/cache-key';
-import { POLL_DELETED_EVENT_KEY } from './polls.constant';
+import {
+  POLL_DELETED_EVENT_KEY,
+  VOTE_COUNT_UPDATED_EVENT_KEY,
+} from './polls.constant';
 
 export class PollsCache {
   constructor(
@@ -53,6 +56,17 @@ export class PollsCache {
     await this.cache.publish(
       POLL_DELETED_EVENT_KEY,
       JSON.stringify({ pollId }),
+    );
+  }
+
+  async publishVoteCountUpdate(
+    pollId: string,
+    optionId: string,
+    voteCount: number,
+  ) {
+    await this.cache.publish(
+      VOTE_COUNT_UPDATED_EVENT_KEY,
+      JSON.stringify({ pollId, optionId, voteCount }),
     );
   }
 }
