@@ -42,6 +42,11 @@ func (h *WebSocketHandler) HandleConnection(ctx context.Context, conn *websocket
 			slog.String("poll_id", pollID),
 		)
 
+		// Close the connection if the poll ID is empty or invalid
+		defer func() {
+			_ = conn.Close()
+		}()
+
 		if pollID == "" {
 			h.logger.Error("missing poll ID in request")
 			h.writeError(conn, "invalid_poll", "missing poll ID in request")
@@ -61,6 +66,7 @@ func (h *WebSocketHandler) HandleConnection(ctx context.Context, conn *websocket
 			conn,
 			h.logger,
 		)
+
 
 		err = h.rooms.Join(pollID, client)
 
