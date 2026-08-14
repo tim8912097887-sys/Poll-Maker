@@ -1,4 +1,20 @@
 services:
+  traefik:
+    image: traefik:v3.7
+    container_name: traefik
+    command:
+      - "--configFile=/etc/traefik/traefik.yml"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    restart: unless-stopped
+    depends_on:
+      - poll-service
+      - vote-service
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -82,6 +98,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: polls_maker
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: always
@@ -101,7 +118,7 @@ services:
       polls-maker-db:
         condition: service_healthy
     command: node dist/src/migrate.js
-  poll-service1:
+  poll-service:
     build:
       context: ./services/poll_service
       dockerfile: Dockerfile

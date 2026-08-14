@@ -1,0 +1,45 @@
+http:
+  routers:
+    poll-api:
+      rule: "PathPrefix(`/api/v1/polls`)"
+      entrypoints:
+        - web
+      service: poll-service
+      middlewares:
+        - api-rate-limit
+        - security-headers
+    vote-api:
+      rule: "PathPrefix(`/api/v1/votes`)"
+      entrypoints:
+        - web
+      service: vote-service
+      middlewares:
+        - api-rate-limit
+        - security-headers
+    vote-websocket:
+      rule: "PathPrefix(`/api/v1/ws`)"
+      entrypoints:
+        - web
+      service: vote-service
+  services:
+    poll-service:
+      loadbalancer:
+        servers:
+          - url: http://poll-service:3000
+    vote-service:
+      loadbalancer:
+        servers:
+          - url: http://vote-service:8080
+
+  middlewares:
+    api-rate-limit:
+      rateLimit:
+        average: 10
+        period: 1m
+        burst: 5
+    security-headers:
+      headers:
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        browserXssFilter: true
